@@ -1,5 +1,5 @@
 #!/bin/sh
-#  start.sh
+#  demorunner.sh
 #
 #
 #  Created by Maria Gabriella Brodi on 3/18/20.
@@ -15,8 +15,8 @@ START_WITH_LINE_NUMBER="${START_WITH_LINE_NUMBER:-1}" # default to 1 if not prov
 if [ ! -f "${COMMANDS_FILE}" ] || ([ $# -eq 2 ] && ! [[ "${START_WITH_LINE_NUMBER}" =~ ^[0-9]+$ ]]); then
   echo
   echo "Usage:"
-  echo     "source ./demo.sh [commands-file]"
-  echo     "source ./demo.sh [commands-file] [start-with-line-number]"
+  echo     "source ./demorunner.sh [commands-file]"
+  echo     "source ./demorunner.sh [commands-file] [start-with-line-number]"
   echo
   echo "This script echoes and executes a list of commands that you provide in a \"commands file\". The file"
   echo "must exist for the demo script to run."
@@ -53,7 +53,7 @@ fi
 # Set terminal tab name to the file name minus the extension
 printf "\e]1;%s\a" "${COMMANDS_FILE%.*}"
 
-# read all the lines in an array
+# Read all the lines in an array
 IFS=$'\n' read -d '' -r -a COMMAND_LINES < $COMMANDS_FILE
 
 
@@ -83,7 +83,7 @@ do
   if [[ $ECHO == "on" ]]; then
     printf "\n$BOLD$COLOR\$$RESET "
 
-#    read -sp "" $move </dev/tty   # wait for user input before echoing command
+#  Read -sp "" $move </dev/tty   # wait for user input before echoing command
 # changed this in favor of reading and executing a sequence of commands
 # type return to resume script execution
     read -sp "" move </dev/tty
