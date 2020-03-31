@@ -2,7 +2,8 @@
 #  start.sh
 #
 #
-# Created by Maria Gabriella Brodi and Cora Iberkleid on 3/28/20.
+#  Created by Maria Gabriella Brodi on 3/18/20.
+#  Modified by Cora Iberkleid on 3/18/20 and 3/24/20.
 
 
 COMMANDS_FILE="${1}"          # required
@@ -14,8 +15,8 @@ START_WITH_LINE_NUMBER="${START_WITH_LINE_NUMBER:-1}" # default to 1 if not prov
 if [ ! -f "${COMMANDS_FILE}" ] || ([ $# -eq 2 ] && ! [[ "${START_WITH_LINE_NUMBER}" =~ ^[0-9]+$ ]]); then
   echo
   echo "Usage:"
-  echo     "source ./demorunner.sh [commands-file]"
-  echo     "source ./demorunner.sh [commands-file] [start-with-line-number]"
+  echo     "source ./demo.sh [commands-file]"
+  echo     "source ./demo.sh [commands-file] [start-with-line-number]"
   echo
   echo "This script echoes and executes a list of commands that you provide in a \"commands file\". The file"
   echo "must exist for the demo script to run."
@@ -52,9 +53,14 @@ fi
 # Set terminal tab name to the file name minus the extension
 printf "\e]1;%s\a" "${COMMANDS_FILE%.*}"
 
+# read all the lines in an array
+IFS=$'\n' read -d '' -r -a COMMAND_LINES < $COMMANDS_FILE
+
+
 # Execute commands from file
 let LINE_NUMBER=0
-while IFS= read -r command; do
+for command in "${COMMAND_LINES[@]}"
+do
   ((LINE_NUMBER=LINE_NUMBER+1))
 
     # Skip echo/execute of any lines before the desired start line or empty line
@@ -95,7 +101,7 @@ while IFS= read -r command; do
   fi
   # execute command
   eval $command
-done < $COMMANDS_FILE
+done
 
 
 
