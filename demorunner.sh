@@ -80,7 +80,6 @@ get_user_input() {
     if [ "${next_char}" = "" ]; then
       break
     fi
-    echo "2-> ${#temp_command}: -${temp_command}-">> log
     # If user hit backspace/delete, remove the last character
     if [ "${next_char}" = $'\177' ]; then
       # Delete chars printed to terminal by delete button
@@ -97,6 +96,11 @@ get_user_input() {
   done
   echo "${temp_command}"
 }
+
+# Make sure file ends with newline so last
+# command is captured in array in next step
+c=`tail -c 1 $1`
+if [ "$c" != "" ]; then echo "" >> $1; fi
 
 # read all the lines in an array
 IFS=$'\n' read -d '' -r -a COMMAND_LINES < ${COMMANDS_FILE}

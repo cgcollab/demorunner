@@ -1,4 +1,7 @@
-@_ECHO_ON
+@_ECHO_OFF
+rm -rf temp/cool-app
+mkdir -p temp
+git clone git@github.com:ciberkleid/cool-app temp/cool-app
 pack rebase cool-app --run-image cloudfoundry/run:base-cnb
 docker image rm cloudfoundry/run:0.0.7-base-cnb -f
 docker image rm cloudfoundry/cnb:0.0.53-bionic -f
@@ -12,14 +15,21 @@ pack suggest-builders
 docker images
 pack rebase cool-app --run-image cloudfoundry/run:0.0.7-base-cnb
 docker images
+@_ECHO_OFF
+cd temp/cool-app
+@_ECHO_ON
 head pom.xml
 ./mvnw spring-boot:build-image
-pack inspect-image cool-app:1.0.0
+pack inspect-image cool-app:1.0.0-boot
 pack inspect-image cool-app
-docker run -p 8080:8080 cool-app:1.0.0
+docker run -p 8080:8080 cool-app:1.0.0-boot
 kubectl api-resources --api-group build.pivotal.io
 cat kpack/default-clusterbuilder.yaml
 cat kpack/image-cool-app.yaml
 printf "#" >> bump; git add bump; git commit -m "bump commit id"; git push
+@_ECHO_OFF
+cd ../..
+@_ECHO_ON
 kubectl get builds -n kpack-builds
 logs -namespace kpack-builds -image cool-app
+
