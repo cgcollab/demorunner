@@ -1,0 +1,25 @@
+@_ECHO_ON
+pack rebase cool-app --run-image cloudfoundry/run:base-cnb
+docker image rm cloudfoundry/run:0.0.7-base-cnb -f
+docker image rm cloudfoundry/cnb:0.0.53-bionic -f
+docker image rm cool-app:1.0.0-boot -f
+docker image rm cool-app:1.0.0 -f
+docker images | grep none | awk '{ print $3; }' | xargs docker rmi -f
+clear
+@_ECHO_ON
+pack --help
+pack suggest-builders
+docker images
+pack rebase cool-app --run-image cloudfoundry/run:0.0.7-base-cnb
+docker images
+head pom.xml
+./mvnw spring-boot:build-image
+pack inspect-image cool-app:1.0.0
+pack inspect-image cool-app
+docker run -p 8080:8080 cool-app:1.0.0
+kubectl api-resources --api-group build.pivotal.io
+cat kpack/default-clusterbuilder.yaml
+cat kpack/image-cool-app.yaml
+printf "#" >> bump; git add bump; git commit -m "bump commit id"; git push
+kubectl get builds -n kpack-builds
+logs -namespace kpack-builds -image cool-app
