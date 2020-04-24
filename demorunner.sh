@@ -75,24 +75,46 @@ printf "\e]1;%s\a" "${COMMANDS_FILE%.*}"
 # Function to process additional user input at runtime
 get_user_input() {
   temp_command=${1}
-  while IFS= read -rn1 next_char ; do
+  while IFS= read -srn1 next_char ; do
     # If user hit enter/return, exit the loop
     if [ "${next_char}" = "" ]; then
       break
     fi
     # If user hit backspace/delete, remove the last character
     if [ "${next_char}" = $'\177' ]; then
-      # Delete chars printed to terminal by delete button
-      printf "\b \b\b \b" >>/dev/tty
+      next_char=""
       # If temp_command is not empty, delete last char from temp_command and from terminal
       if [ ${#temp_command} -gt 0 ]; then
         printf "\b \b" >>/dev/tty
         temp_command=${temp_command%?} # remove the last char
       fi
-    else
-      # Append next_char to temp_command
-      temp_command=${temp_command}${next_char}
     fi
+    # Detect escape sequences, capture if user hit arrow key
+    arrow=""
+    if [ "${next_char}" = $'\E' ]; then # =$'\E' or =$'\x1b'
+      read -srn1 next_char
+      if [ "${next_char}" = $'[' ]; then
+        read -srn1 next_char
+        if [ "${next_char}" = 'A' ]; then
+          arrow=up
+        elif [ "${next_char}" = 'B' ]; then
+          arrow=down
+        elif [ "${next_char}" = 'C' ]; then
+          arrow=right
+        elif [ "${next_char}" = 'D' ]; then
+          arrow=left
+        else
+          printf "${RED}ERROR: ARROW KEY DETECTED - DIRECTION UNKNOWN: ${next_char}${ERROR}\n" >>/dev/tty
+        fi
+      else
+        printf "${RED}ERROR: ESCAPE KEY DETECTED FOLLOWED BY UNRECOGNIZED CHARACTER: ${next_char}${ERROR}\n" >>/dev/tty
+      fi
+      next_char=""
+    fi
+    # TODO Handle case where user input is an arrow (currently ignored/no-op)
+    # Echo the next_char to the terminal and append temp_command
+    printf "${next_char}" >>/dev/tty
+    temp_command=${temp_command}${next_char}
   done
   echo "${temp_command}"
 }
@@ -140,6 +162,7 @@ do
     custom_command=$(get_user_input "")
     # If user entered a custom command, execute it
     if [[ "${custom_command}" != "" ]]; then
+      echo
       printf "${RESET_FONT}"
       eval "${custom_command}"
     else
@@ -147,15 +170,9 @@ do
     fi
   done
 
-  # Magic: delete the last line (should just contain the prompt)
-  cols=$(tput cols)
-  IFS=';' read -sdR -p $'\E[6n' ROW COL; ((current_line=${ROW#*[}))
-  ((current_line=current_line-2))
-  tput cup ${current_line} 2
-  # END Magic
-
   # Process command from file
-  printf "${SET_FONT}${command}" | pv -qL 10
+  # printf "${SET_FONT}${command}" | pv -qL 10
+  printf "${SET_FONT}${command}"
   # Wait for user to hit return/enter before executing. Allow user to delete and change the command as well.
   command=$(get_user_input "${command}")
   echo
