@@ -128,7 +128,10 @@ c=`tail -c 1 $1`
 if [ "$c" != "" ]; then echo "" >> $1; fi
 
 # read all the lines in an array
-IFS=$'\n' read -d '' -r -a COMMAND_LINES < ${COMMANDS_FILE}
+COMMAND_LINES=( )
+while IFS= read -r line; do
+  COMMAND_LINES+=( "$line" )
+done < "${COMMANDS_FILE}"
 
 # Execute commands in array. Allow dynamic input as well.
 ((LINE_NUMBER=1))
