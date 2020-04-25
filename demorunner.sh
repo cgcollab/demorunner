@@ -37,11 +37,14 @@ usage_instructions() {
   echo "turned on, the script will wait for the user to hit Enter/Return before echoing each command, and again"
   echo "before executing the command. Commands are echoed slowly to the terminal to simulate live typing."
   echo
+  echo "Use @_SKIP at the beginning of any line in the commands file to skip the line. Skipped lines will not be"
+  echo "echoed or executed."
+  echo
   echo "At the prompt, you may also type a custom command at any time. Once that is executed, hit Enter/Return at"
   echo "an empty prompt to continue with the next command from the commands file"
   echo
-  echo "If you provide a number as a second input argument, the script will skip execution of any lines above that."
-  echo "@_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected."
+  echo "If you provide a number as a second input argument (\"start-with-line-number\"), the script will skip execution"
+  echo "of any lines above that. @_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected."
   echo
   echo "The default font color for echoed commands is yellow. You can change it to blue using:"
   echo "export DEMO_COLOR=blue"
@@ -53,7 +56,7 @@ usage_instructions() {
 ERROR=""
 if [ $# -eq 0 ] || [[ ${1} =~ -h|--help ]]; then
   usage_instructions
-  return
+  kill -INT $$
 elif [ $# -gt 2 ]; then
   ERROR="Unexpected number of input arguments: expecting 1 or 2 (got $#)"
 elif [ ! -f "${COMMANDS_FILE}" ]; then
@@ -64,7 +67,7 @@ fi
 if [[ ${ERROR} != "" ]]; then
   printf "${RED}ERROR: ${ERROR}\n"
   usage_instructions
-  return
+  kill -INT $$
 else
   echo "Executing commands in file ${COMMANDS_FILE} starting at line ${START_WITH_LINE_NUMBER}"
 fi
@@ -132,7 +135,7 @@ IFS=$'\n' read -d '' -r -a COMMAND_LINES < ${COMMANDS_FILE}
 for command in "${COMMAND_LINES[@]}"
 do
   # Always check for desired state of ECHO setting
-  # Skip empty lines and any lines before desired start line
+  # Skip lines beginning with SKIP flag, empty lines, and lines before desired start line
   if [[ "${command}" == "@_ECHO_ON" ]]; then
     ECHO=on
     ((LINE_NUMBER=LINE_NUMBER+1))
@@ -141,7 +144,7 @@ do
     ECHO=off
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
-  elif [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
+  elif [[ "${command}" =~ ^@_SKIP.* ]] || [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
   fi
