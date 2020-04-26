@@ -139,7 +139,8 @@ get_user_input() {
 c=`tail -c 1 $1`
 if [ "$c" != "" ]; then echo "" >> $1; fi
 
-# read all the lines in an array
+# read all the lines into an array (preserve empty lines so array length matches number
+# of lines in commands file (important for accuracy of start-from-line-number argument)
 COMMAND_LINES=( )
 while IFS= read -r line; do
   COMMAND_LINES+=( "$line" )
