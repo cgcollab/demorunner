@@ -54,7 +54,7 @@ usage_instructions() {
   echo "                Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster."
   echo
   echo "During execution of your commands file, you may also type a custom command at any time. Once your custom command is"
-  echp "executed, press Return at the next empty prompt to continue with the next command from the commands file."
+  echo "executed, press Return at the next empty prompt to continue with the next command from the commands file."
   echo
   echo "--- Known issues/To-do List:"
   echo
