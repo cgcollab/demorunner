@@ -22,32 +22,44 @@ else
   SET_FONT="${YELLOW}${BOLD}"
 fi
 
+# Set typing delay
+DEMO_DELAY=${DEMO_DELAY:-10}
+
 usage_instructions() {
   printf "${RESET_FONT}"
   echo
+  echo "This utility enables the simulation of 'live typing' for command-line driven demos by echoing and executing"
+  echo "a list of commands that you provide in a 'commands file'."
+  echo
   echo "Usage:"
-  echo     "source ./demorunner.sh [commands-file]"
-  echo     "source ./demorunner.sh [commands-file] [start-with-line-number]"
+  echo "source ./demorunner.sh (commands-file) [start-with-line-number]"
   echo
-  echo "This script echoes and executes a list of commands that you provide in a \"commands file\". The file"
-  echo "must exist for the demorunner script to run. Also, if a second argument is supplied, it must be an integer."
+  echo "Command-line arguments:"
+  echo "  commands-file           - Name of the file with the list of commands to execute. Required."
+  echo "  start-with-line-number  - Line number in the commands file at which to begin execution. Optional. Default is 1."
+  echo "                            @_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected, but"
+  echo "                            other lines will be ignored."
   echo
-  echo "Use @_ECHO_ON & @_ECHO_OFF in the commands file to control whether or not commands are printed to the"
-  echo "terminal before they are executed. If echo is turned off, commands are executed immediately. If echo is"
-  echo "turned on, the script will wait for the user to hit Enter/Return before echoing each command, and again"
-  echo "before executing the command. Commands are echoed slowly to the terminal to simulate live typing."
+  echo "The following flags can be used in the commands file:"
+  echo "  @_ECHO_ON   - Turns on echoing and execution of subsequent commands. Must be placed in its own line."
+  echo "                When @_ECHO_ON is enabled, user must press the Return key once to echo the next command, and again"
+  echo "                to execute it."
+  echo "  @_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input."
+  echo "                Must be placed in its own line. This is the default mode."
+  echo "  @_SKIP      - Disables echo and execution of a line. Must be placed at the beginning of the line."
   echo
-  echo "Use @_SKIP at the beginning of any line in the commands file to skip the line. Skipped lines will not be"
-  echo "echoed or executed."
+  echo "The following environment variables can be used to modify the behavior of the script:"
+  echo "  DEMO_COLOR  - May be yellow or blue. Default is yellow."
+  echo "  DEMO_DELAY  - Controls the rate of the echoing of commands to simulate live typing. Default is 10."
+  echo "                Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster."
   echo
-  echo "At the prompt, you may also type a custom command at any time. Once that is executed, hit Enter/Return at"
-  echo "an empty prompt to continue with the next command from the commands file"
+  echo "During execution of your commands file, you may also type a custom command at any time. Once your custom command is"
+  echp "executed, press Return at the next empty prompt to continue with the next command from the commands file."
   echo
-  echo "If you provide a number as a second input argument (\"start-with-line-number\"), the script will skip execution"
-  echo "of any lines above that. @_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected."
+  echo "--- Known issues/To-do List:"
   echo
-  echo "The default font color for echoed commands is yellow. You can change it to blue using:"
-  echo "export DEMO_COLOR=blue"
+  echo "- Up/Down/Left/Right arrows have no effect."
+  echo "- Tab/autocompletion does not work."
   echo
 }
 
@@ -177,8 +189,7 @@ do
   done
 
   # Process command from file
-  # printf "${SET_FONT}${command}" | pv -qL 10
-  printf "${SET_FONT}${command}"
+  printf "${SET_FONT}${command}" | pv -qL "${DEMO_DELAY}"
   # Wait for user to hit return/enter before executing. Allow user to delete and change the command as well.
   command=$(get_user_input "${command}")
   echo
