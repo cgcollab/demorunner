@@ -13,11 +13,14 @@ BOLD="\033[1m"
 YELLOW="\033[38;5;11m"
 BLUE="\033[0;34m"
 RED="\033[0;31m"
+WHITE="\033[38;5;15m"
 ECHO=off
 
 # Set color
 if [[ $DEMO_COLOR == "blue" ]]; then
   SET_FONT="${BLUE}${BOLD}"
+elif [[ $DEMO_COLOR == "white" ]]; then
+  SET_FONT="${WHITE}${BOLD}"
 else
   SET_FONT="${YELLOW}${BOLD}"
 fi
@@ -49,7 +52,7 @@ usage_instructions() {
   echo "  @_SKIP      - Disables echo and execution of a line. Must be placed at the beginning of the line."
   echo
   echo "The following environment variables can be used to modify the behavior of the script:"
-  echo "  DEMO_COLOR  - May be yellow or blue. Default is yellow."
+  echo "  DEMO_COLOR  - May be yellow, blue, or white. Default is yellow."
   echo "  DEMO_DELAY  - Controls the rate of the echoing of commands to simulate live typing. Default is 10."
   echo "                Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster."
   echo

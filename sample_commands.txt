@@ -1,0 +1,29 @@
+# Prep for demo
+mkdir -p temp
+cd temp
+
+# Clean up from previous runs
+rm hello.sh
+rm later.sh
+
+echo "echo \"Hello, world!\"" > hello.sh
+chmod +x hello.sh
+
+# Start demo
+@_SKIP_ITclear
+echo "Press Return to display a command, and again to execute it"
+@_ECHO_ON
+# Demo 1: run an executable file
+ls
+./hello.sh
+@_SKIP_IT rm hello.sh
+@_ECHO_OFF
+mv hello.sh later.sh
+sed -i '' 's/Hello, world/Later, alligator/g' later.sh
+@_ECHO_ON
+ls
+./later.sh
+
+@_ECHO_OFF
+echo
+cd ..
