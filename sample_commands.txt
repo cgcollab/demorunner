@@ -10,13 +10,13 @@ echo "echo \"Hello, world!\"" > hello.sh
 chmod +x hello.sh
 
 # Start demo
-@_SKIP_ITclear
+@_SKIPclear
 echo "Press Return to display a command, and again to execute it"
 @_ECHO_ON
 # Demo 1: run an executable file
 ls
 ./hello.sh
-@_SKIP_IT rm hello.sh
+@_SKIPrm hello.sh
 @_ECHO_OFF
 mv hello.sh later.sh
 sed -i '' 's/Hello, world/Later, alligator/g' later.sh
