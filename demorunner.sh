@@ -88,7 +88,8 @@ else
 fi
 
 # Set terminal tab name to the file name minus the extension
-printf "\e]1;%s\a" "${COMMANDS_FILE%.*}"
+tabname="$(basename -- $COMMANDS_FILE)"
+printf "\e]1;%s\a" "${tabname%.*}"
 
 # Function to process additional user input at runtime
 get_user_input() {
