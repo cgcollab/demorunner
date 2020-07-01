@@ -150,6 +150,7 @@ if [ "$c" != "" ]; then echo "" >> $1; fi
 # of lines in commands file (important for accuracy of start-from-line-number argument)
 COMMAND_LINES=( )
 while IFS= read -r line; do
+  line="$(echo -e "${line}" | tr -d '[:space:]')"
   COMMAND_LINES+=( "$line" )
 done < "${COMMANDS_FILE}"
 
