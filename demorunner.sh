@@ -26,7 +26,7 @@ else
 fi
 
 # Set typing delay
-DEMO_DELAY=${DEMO_DELAY:-10}
+DEMO_DELAY=${DEMO_DELAY:-15}
 
 
 usage_instructions() {
