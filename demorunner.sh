@@ -41,18 +41,18 @@ usage_instructions() {
   echo "Command-line arguments:"
   echo "  commands-file           - Name of the file with the list of commands to execute. Required."
   echo "  start-with-line-number  - Line number in the commands file at which to begin execution. Optional. Default is 1."
-  echo "                            @_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected, but"
+  echo "                            #_ECHO_ON & #_ECHO_OFF commands above the starting line will still be respected, but"
   echo "                            other lines will be ignored."
   echo
-  echo "Any lines starting with # will be ignored"
-  echo
   echo "The following flags can be used in the commands file:"
-  echo "  @_ECHO_ON   - Turns on echoing and execution of subsequent commands. Must be placed in its own line."
-  echo "                When @_ECHO_ON is enabled, user must press the Return key once to echo the next command, and again"
+  echo "  #_ECHO_ON   - Turns on echoing and execution of subsequent commands. Must be placed in its own line."
+  echo "                When #_ECHO_ON is enabled, user must press the Return key once to echo the next command, and again"
   echo "                to execute it. This is the default mode."
-  echo "  @_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input."
+  echo "  #_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input."
   echo "                Must be placed in its own line."
-  echo "  @_ECHO_#    - Strips tag and echoes command starting from #. Must be placed at the beginning of the line."
+  echo "  #_ECHO_#    - Strips tag and echoes command starting from #. Must be placed at the beginning of the line."
+  echo
+  echo "Otherwise, lines starting with # will be ignored."
   echo
   echo "The following environment variables can be used to modify the behavior of the script:"
   echo "  DEMO_COLOR  - May be yellow, blue, or white. Default is yellow."
@@ -150,7 +150,8 @@ if [ "$c" != "" ]; then echo "" >> $1; fi
 # of lines in commands file (important for accuracy of start-from-line-number argument)
 COMMAND_LINES=( )
 while IFS= read -r line; do
-  line="$(echo -e "${line}" | tr -d '[:space:]')"
+  #TODO Make sure the following line properly trims whitespaces
+  #line="$(echo -e "${line}" | tr -d '[:space:]')"
   COMMAND_LINES+=( "$line" )
 done < "${COMMANDS_FILE}"
 
@@ -160,21 +161,21 @@ for command in "${COMMAND_LINES[@]}"
 do
   # Always check for desired state of ECHO setting
   # Skip lines that start with #, empty lines, and lines before desired start line
-  if [[ "${command}" == "@_ECHO_ON" ]]; then
+  if [[ "${command}" == "#_ECHO_ON" ]]; then
     ECHO=on
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
-  elif [[ "${command}" == "@_ECHO_OFF" ]]; then
+  elif [[ "${command}" == "#_ECHO_OFF" ]]; then
     ECHO=off
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
+  elif [[ "${command}" =~ ^#_ECHO_#.* ]]; then
+    # If line starts with #_ECHO_# tag, remove characters before the #
+    command="${command:7}"
+    # Process this line - do not "continue"
   elif [[ "${command}" =~ ^#.* ]] || [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
-  fi
-  # If line starts with @_ECHO_# tag, remove characters before the #
-  if [[ "${command}" =~ ^@_ECHO_#.* ]]; then
-    command="${command:7}"
   fi
   # If ECHO is off, just execute the command
   if [[ $ECHO == "off" ]]; then
