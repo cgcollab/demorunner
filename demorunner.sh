@@ -14,7 +14,7 @@ YELLOW="\033[38;5;11m"
 BLUE="\033[0;34m"
 RED="\033[0;31m"
 WHITE="\033[38;5;15m"
-ECHO=off
+ECHO=on
 
 # Set color
 if [[ $DEMO_COLOR == "blue" ]]; then
@@ -27,6 +27,7 @@ fi
 
 # Set typing delay
 DEMO_DELAY=${DEMO_DELAY:-10}
+
 
 usage_instructions() {
   printf "${RESET_FONT}"
@@ -43,13 +44,15 @@ usage_instructions() {
   echo "                            @_ECHO_ON & @_ECHO_OFF commands above the starting line will still be respected, but"
   echo "                            other lines will be ignored."
   echo
+  echo "Any lines starting with # will be ignored"
+  echo
   echo "The following flags can be used in the commands file:"
   echo "  @_ECHO_ON   - Turns on echoing and execution of subsequent commands. Must be placed in its own line."
   echo "                When @_ECHO_ON is enabled, user must press the Return key once to echo the next command, and again"
-  echo "                to execute it."
+  echo "                to execute it. This is the default mode."
   echo "  @_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input."
-  echo "                Must be placed in its own line. This is the default mode."
-  echo "  @_SKIP      - Disables echo and execution of a line. Must be placed at the beginning of the line."
+  echo "                Must be placed in its own line."
+  echo "  @_ECHO_#    - Strips tag and echoes command starting from #. Must be placed at the beginning of the line."
   echo
   echo "The following environment variables can be used to modify the behavior of the script:"
   echo "  DEMO_COLOR  - May be yellow, blue, or white. Default is yellow."
@@ -155,7 +158,7 @@ done < "${COMMANDS_FILE}"
 for command in "${COMMAND_LINES[@]}"
 do
   # Always check for desired state of ECHO setting
-  # Skip lines beginning with SKIP flag, empty lines, and lines before desired start line
+  # Skip lines that start with #, empty lines, and lines before desired start line
   if [[ "${command}" == "@_ECHO_ON" ]]; then
     ECHO=on
     ((LINE_NUMBER=LINE_NUMBER+1))
@@ -164,9 +167,13 @@ do
     ECHO=off
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
-  elif [[ "${command}" =~ ^@_SKIP.* ]] || [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
+  elif [[ "${command}" =~ ^#.* ]] || [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
+  fi
+  # If line starts with @_ECHO_# tag, remove characters before the #
+  if [[ "${command}" =~ ^@_ECHO_#.* ]]; then
+    command="${command:7}"
   fi
   # If ECHO is off, just execute the command
   if [[ $ECHO == "off" ]]; then
@@ -202,3 +209,4 @@ do
   eval "${command}"
   ((LINE_NUMBER=LINE_NUMBER+1))
 done
+
