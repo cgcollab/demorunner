@@ -169,11 +169,14 @@ do
     ECHO=off
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
+  elif [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
+    ((LINE_NUMBER=LINE_NUMBER+1))
+    continue
   elif [[ "${command}" =~ ^#_ECHO_#.* ]]; then
     # If line starts with #_ECHO_# tag, remove characters before the #
     command="${command:7}"
     # Process this line - do not "continue"
-  elif [[ "${command}" =~ ^#.* ]] || [[ "${command}" == "" ]] || [[ $LINE_NUMBER -lt $START_WITH_LINE_NUMBER ]]; then
+  elif [[ "${command}" =~ ^#.* ]]; then
     ((LINE_NUMBER=LINE_NUMBER+1))
     continue
   fi
