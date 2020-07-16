@@ -97,7 +97,7 @@ printf "\e]1;%s\a" "${tabname%.*}"
 # Function to process additional user input at runtime
 get_user_input() {
   temp_command=${1}
-  while IFS= read -srn1 next_char ; do
+  while IFS= read -srn 1 next_char ; do
     # If user hit enter/return, exit the loop
     if [ "${next_char}" = "" ]; then
       break
