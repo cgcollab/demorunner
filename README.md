@@ -23,13 +23,12 @@ brew install pv
 
 Optionally add a line number at the end to start at a different line
 ```
-chmod +x ./demorunner.sh
-./demorunner.sh sample_commands.txt
+source ./demorunner.sh sample_commands.txt
 ```
 
 Optionally add a line number at the end to start at a different line
 ```
-./demorunner.sh sample_commands.txt 2
+source ./demorunner.sh sample_commands.txt 2
 ```
 
 # demorunner.sh usage instructions:
