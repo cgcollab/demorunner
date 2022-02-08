@@ -14,7 +14,7 @@ chmod +x hello.sh
 # Start demo
 clear
 #_ECHO_ON
-echo "Press Return to display a command, and again to execute it"
+#_ECHO_# Press Return to display a command, and again to execute it
 #_ECHO_# Demo 1: run an executable file
 ls
 ./hello.sh
@@ -25,8 +25,5 @@ sed -i '' 's/Hello, world/Later, alligator/g' later.sh
 #_ECHO_ON
 ls
 ./later.sh
-
-#_ECHO_# Questions?
-echo
 cd ..
-
+#_ECHO_# Questions?
