@@ -19,11 +19,16 @@ clear
 ls
 ./hello.sh
 #rm hello.sh
+
 #_ECHO_OFF
 mv hello.sh later.sh
 sed -i '' 's/Hello, world/Later, alligator/g' later.sh
 #_ECHO_ON
 ls
 ./later.sh
+
+#_ECHO_OFF
 cd ..
+#_ECHO_ON
+
 #_ECHO_# Questions?
