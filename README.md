@@ -71,3 +71,10 @@ executed, press Return at the next empty prompt to continue with the next comman
 - Up/Down/Left/Right arrows have no effect.
 - Tab/autocompletion does not work.
 ```
+
+# limitations
+
+- Up/Down/Left/Right arrows have no effect
+- Tab/autocompletion does not work
+
+We are not sure when we'll have a chance to implement arrows and tabbing, but if you want to give it a shot, we'd love your contributions via a pull request!
