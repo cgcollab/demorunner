@@ -72,7 +72,7 @@ usage_instructions() {
 # If the 'commands file' does not exist, print error and usage instructions
 # If a 'start with line number' argument was provided and it is not a number, print error and usage instructions
 ERROR=""
-if [ $# -eq 0 ] || [[ ${1} =~ -h|--help ]]; then
+if [ $# -eq 0 ] || [[ ${1} == "-h" ]] || [[ ${1} == "--help" ]]; then
   usage_instructions
   kill -INT $$
 elif [ $# -gt 2 ]; then
