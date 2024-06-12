@@ -14,6 +14,7 @@ YELLOW="\033[38;5;11m"
 BLUE="\033[0;34m"
 RED="\033[0;31m"
 WHITE="\033[38;5;15m"
+BLACK="\033[0;30m"
 ECHO=on
 
 # Set color
@@ -21,6 +22,8 @@ if [[ $DEMO_COLOR == "blue" ]]; then
   SET_FONT="${BLUE}${BOLD}"
 elif [[ $DEMO_COLOR == "white" ]]; then
   SET_FONT="${WHITE}${BOLD}"
+elif [[ $DEMO_COLOR == "black" ]]; then
+  SET_FONT="${BLACK}${BOLD}"
 else
   SET_FONT="${YELLOW}${BOLD}"
 fi
