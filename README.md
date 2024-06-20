@@ -2,22 +2,28 @@
 sh script to automate shell controlled demos.
 
 This script executes a sequence of shell commands saved in a separate file 
-(this file name is provided as an input paramater for the script).  
+(this file name is provided as an input parameter for the script).  
 
-The goal of the script is to offer a pre-packaged demo experience controlled by the the operartor with 
+The goal of the script is to offer a pre-packaged demo experience controlled by the operator with 
 control over speed and text colors for better clarity for the final user.
 
-The inital version allows for execution of extra commands during the demo and the possibility to start 
+The initial version allows for execution of extra commands during the demo and the possibility to start 
 the demo from a specific line number (where feasible).
 
 Run the script without arguments to show the help. (Also copied below)
 
-# prerequisites
+# installation
+
+### prerequisites
 
 Install pv:
 ```
 brew install pv
 ```
+
+### recommendations
+
+Copy `demorunner.sh` to a directory that is included in your PATH by default.
 
 # run sample commands
 
@@ -59,7 +65,7 @@ The following flags can be used in the commands file:
 Otherwise, lines starting with # will be ignored.
 
 The following environment variables can be used to modify the behavior of the script:
-  DEMO_COLOR  - May be yellow, blue, or white. Default is yellow.
+  DEMO_COLOR  - May be yellow, blue, white, or black. Default is yellow.
   DEMO_DELAY  - Controls the rate of the echoing of commands to simulate live typing. Default is 10.
                 Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster.
 

@@ -58,7 +58,7 @@ usage_instructions() {
   echo "Otherwise, lines starting with # will be ignored."
   echo
   echo "The following environment variables can be used to modify the behavior of the script:"
-  echo "  DEMO_COLOR  - May be yellow, blue, or white. Default is yellow."
+  echo "  DEMO_COLOR  - May be yellow, blue, white, or black. Default is yellow."
   echo "  DEMO_DELAY  - Controls the rate of the echoing of commands to simulate live typing. Default is 10."
   echo "                Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster."
   echo
