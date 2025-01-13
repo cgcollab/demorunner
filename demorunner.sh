@@ -1,4 +1,6 @@
 #!/bin/bash --login
+shopt -s expand_aliases
+
 #  demorunner.sh
 #
 #
