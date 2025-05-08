@@ -56,6 +56,8 @@ usage_instructions() {
   echo "  #_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input."
   echo "                Must be placed in its own line."
   echo "  #_ECHO_#    - Strips tag and echoes command starting from #. Must be placed at the beginning of the line."
+  echo "  #_ECHO_E_#  - Strips tag, evaluates variables in the command, and echoes the evaluated command starting from #."
+  echo "                Must be placed in its own line."
   echo
   echo "Otherwise, lines starting with # will be ignored."
   echo
@@ -180,6 +182,12 @@ do
   elif [[ "${command}" =~ ^#_ECHO_#.* ]]; then
     # If line starts with #_ECHO_# tag, remove characters before the #
     command="${command:7}"
+    # Process this line - do not "continue"
+  elif [[ "${command}" =~ ^#_ECHO_E_#.* ]]; then
+    # If line starts with #_ECHO_E_# tag, remove characters before the #, expand vars after the #
+    raw=${command:10}
+    expanded_cmd=$(eval "printf '%s\n' \"$raw\"")
+    command="#$expanded_cmd"
     # Process this line - do not "continue"
   elif [[ "${command}" =~ ^#.* ]]; then
     ((LINE_NUMBER=LINE_NUMBER+1))

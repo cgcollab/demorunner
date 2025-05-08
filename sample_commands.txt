@@ -14,6 +14,9 @@ chmod +x hello.sh
 # Start demo
 clear
 #_ECHO_ON
+
+#_ECHO_E_# Hello! $(date +%A) is a good day for a demo!
+
 #_ECHO_# Press Return to display a command, and again to execute it
 #_ECHO_# Demo 1: run an executable file
 ls
