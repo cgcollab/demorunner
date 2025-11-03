@@ -25,7 +25,7 @@ ls
 
 #_ECHO_OFF
 mv hello.sh later.sh
-sed -i'' -e 's/Hello, world/Later, alligator/g' later.sh
+sed -i '' -e 's/Hello, world/Later, alligator/g' later.sh
 #_ECHO_ON
 ls
 ./later.sh
