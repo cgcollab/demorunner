@@ -1,86 +1,111 @@
 # demorunner
-sh script to automate shell controlled demos.
 
-This script executes a sequence of shell commands saved in a separate file 
-(this file name is provided as an input parameter for the script).  
+A Bash utility for automating **live shell demos** — simulating typed commands with adjustable speed, color, and interactive control.
 
-The goal of the script is to offer a pre-packaged demo experience controlled by the operator with 
-control over speed and text colors for better clarity for the final user.
+`demorunner.sh` executes a sequence of shell commands stored in a separate *commands file* (provided as an argument).  
+It allows the demo operator to step through commands one by one, type additional ad-hoc commands, or resume automated playback at any point in the script.
 
-The initial version allows for execution of extra commands during the demo and the possibility to start 
-the demo from a specific line number (where feasible).
+---
 
-Run the script without arguments to show the help. (Also copied below)
+## ✨ Features
 
-# installation
+- Simulates **live typing** with adjustable speed and color
+- Allows **manual control** of demo flow — press Return once to show a command, again to run it
+- Supports **ad-hoc commands** between scripted lines
+- Keeps **command history** and aupports **in-line editing** using arrow keys
+- Respects `#_ECHO_ON` / `#_ECHO_OFF` flags for interactive or silent execution
+- Can start execution from any line number in the file
 
-### prerequisites
+---
 
-Install pv:
-```
+## ⚙️ Installation
+
+### Prerequisites
+
+Install [`pv`](https://www.ivarch.com/programs/pv.shtml), used to control simulated typing speed:
+
+```bash
 brew install pv
 ```
 
-### recommendations
+### Recommendation
 
-Copy `demorunner.sh` to a directory that is included in your PATH by default.
+Copy `demorunner.sh` to a directory included in your `PATH` for convenient use.
 
-# run sample commands
+---
 
-Optionally add a line number at the end to start at a different line
+## ▶️ Usage
+
+### Basic Example
+
+
+See (sample_commands.txt)[sample_commands.txt]
+
+```bash
+./demorunner.sh sample_commands.txt
 ```
-source ./demorunner.sh sample_commands.txt
+
+### Start from a Specific Line
+
+```bash
+./demorunner.sh sample_commands.txt 2
 ```
 
-Optionally add a line number at the end to start at a different line
-```
-source ./demorunner.sh sample_commands.txt 2
+Run the script with no arguments to display the built-in help:
+
+```bash
+./demorunner.sh
 ```
 
-# demorunner.sh usage instructions:
+---
+
+## 📘 Usage Instructions
 
 ```
-$ demorunner.sh
-
 This utility enables the simulation of 'live typing' for command-line driven demos by echoing and executing
 a list of commands that you provide in a 'commands file'.
 
 Usage:
-source ./demorunner.sh (commands-file) [start-with-line-number]
+  ./demorunner.sh <commands-file> [start-with-line-number]
+  (Run directly, not with 'source', to prevent mixing its environment with your current shell.)
 
 Command-line arguments:
   commands-file           - Name of the file with the list of commands to execute. Required.
   start-with-line-number  - Line number in the commands file at which to begin execution. Optional. Default is 1.
-                            #_ECHO_ON & #_ECHO_OFF commands above the starting line will still be respected, but
-                            other lines will be ignored.
+                            The most recent #_ECHO_ON or #_ECHO_OFF flag above this line will still be respected.
 
 The following flags can be used in the commands file:
-  #_ECHO_ON   - Turns on echoing and execution of subsequent commands. Must be placed in its own line.
-                When #_ECHO_ON is enabled, user must press the Return key once to echo the next command, and again
-                to execute it. This is the default mode.
-  #_ECHO_OFF  - Turns off echoing of subsequent commands. Commands will be executed immediately, without user input.
-                Must be placed in its own line.
-  #_ECHO_#    - Strips tag and echoes command starting from #. Must be placed at the beginning of the line.
+  #_ECHO_ON   - Enables interactive echoing; subsequent commands are shown and executed one by one.
+  #_ECHO_OFF  - Disables interactive echoing; subsequent commands are executed silently (no prompts or typing).
+                Note: command output still appears normally unless redirected (e.g., '> /dev/null').
+  #_ECHO_#    - Strips tag and echoes the rest of the line as a comment (prefixed with #).
+  #_ECHO_E_#  - Same as #_ECHO_#, but evaluates variables before echoing the comment.
 
-Otherwise, lines starting with # will be ignored.
+Otherwise, lines starting with # or containing only whitespace will be ignored (as in a normal shell script).
 
-The following environment variables can be used to modify the behavior of the script:
-  DEMO_COLOR  - May be yellow, blue, white, or black. Default is yellow.
-  DEMO_DELAY  - Controls the rate of the echoing of commands to simulate live typing. Default is 10.
-                Set to 0 to disable rate-limiting. Increase the setting to make typing appear faster.
+Environment variables:
+  DEMO_COLOR  - Sets the color of the prompt and the displayed command.
+                May be yellow, blue, white, or black. Default is yellow.
+  DEMO_DELAY  - Controls the simulated typing speed. Default is 15.
+                Set to 0 to disable rate-limiting; increase to make typing appear faster.
 
-During execution of your commands file, you may also type a custom command at any time. Once your custom command is
-executed, press Return at the next empty prompt to continue with the next command from the commands file.
-
---- Known issues/To-do List:
-
-- Up/Down/Left/Right arrows have no effect.
-- Tab/autocompletion does not work.
+Interactive features:
+  - When #_ECHO_ON is enabled, press Return once to display the next command, and again to execute it.
+  - Ad-hoc typing: at the prompt, enter any command; press Return on an empty line to resume scripted commands.
+  - Up/Down arrows: browse command history (does not include commands executed silently while #_ECHO_OFF is active).
+  - Left/Right arrows: move the cursor for in-line editing.
 ```
 
-# limitations
+---
 
-- Up/Down/Left/Right arrows have no effect
-- Tab/autocompletion does not work
+## ⚠️ Known Limitations
 
-We are not sure when we'll have a chance to implement arrows and tabbing, but if you want to give it a shot, we'd love your contributions via a pull request!
+- For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are currently ignored (e.g., Tab, Ctrl+L).
+- Tab autocompletion is currently not supported.
+
+---
+
+## 🪪 License
+
+MIT License © 2025  
+Created by Maria Gabriella Brodi and Cora Iberkleid.

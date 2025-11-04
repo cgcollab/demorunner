@@ -1,12 +1,9 @@
 #_ECHO_OFF
 
 # Prep for demo
-mkdir -p temp
-cd temp
-
-# Clean up from previous runs
-rm hello.sh
-rm later.sh
+mkdir -p temp-demorunner
+cd temp-demorunner
+rm *.sh  # Clean up from previous runs
 
 echo "echo \"Hello, world!\"" > hello.sh
 chmod +x hello.sh
@@ -15,23 +12,26 @@ chmod +x hello.sh
 clear
 #_ECHO_ON
 
-#_ECHO_E_# Hello! $(date +%A) is a good day for a demo!
+#_ECHO_OFF
+echo "Instructions: Press Return to display a scripted command, and again to execute it"
+echo "              Type any ad-hoc commands at the prompt"
+echo "              Use up/down arrows to navigate command history"
+echo "              Use left/right arrows to edit a displayed command"
+#_ECHO_ON
 
-#_ECHO_# Press Return to display a command, and again to execute it
-#_ECHO_# Demo 1: run an executable file
+#_ECHO_E_# Today is $(date +%A), amirite?
+
+pwd
 ls
 ./hello.sh
-#rm hello.sh
 
+#_ECHO_# Ready for a magic trick? I will silently change hello into goodbye!
 #_ECHO_OFF
-mv hello.sh later.sh
-sed -i '' -e 's/Hello, world/Later, alligator/g' later.sh
+mv hello.sh goodbye.sh
+sed -i '' -e 's/Hello, world/Later, alligator/g' goodbye.sh
 #_ECHO_ON
 ls
-./later.sh
-
-#_ECHO_OFF
-cd ..
-#_ECHO_ON
+./goodbye.sh
 
 #_ECHO_# Questions?
+#_ECHO_#
