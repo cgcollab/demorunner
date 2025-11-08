@@ -1,0 +1,71 @@
+#_ECHO_OFF
+
+export DEMO_DELAY=0
+
+# Multi-line while #_ECHO_OFF is enabled
+if [ -d temp-demorunner ]; then
+  echo "Demo directory exists"
+  cd temp-demorunner
+  [ -f multiline_unquoted_heredoc.txt ] && echo "Deleting multiline_unquoted_heredoc.txt" && rm multiline_unquoted_heredoc.txt
+  [ -f multiline_singlequoted_heredoc.txt ] && echo "Deleting multiline_singlequoted_heredoc.txt" && rm multiline_singlequoted_heredoc.txt
+  [ -f multiline_doublequoted_heredoc.txt ] && echo "Deleting multiline_doublequoted_heredoc.txt" && rm multiline_doublequoted_heredoc.txt
+else
+  echo "Creating demo directory"
+  mkdir -p temp-demorunner
+  cd temp-demorunner
+fi
+
+#_ECHO_ON
+
+echo "This is a multiline 
+command using unclosed quotes"
+
+if [ 1 -lt 2 ]; then
+  echo "multi-line if block: condition is true"
+else
+  echo "multi-line if block: condition is false"
+fi
+
+# Unquoted heredoc - expands variables and command substitution
+cat > multiline_unquoted_heredoc.txt << EOF
+Line 1 (unquoted heredoc supports expansion)
+Line 2 with special chars: $HOME
+Line 3 with command substitution: $(pwd)
+Line 4 with backticks: `pwd`
+EOF
+
+cat multiline_unquoted_heredoc.txt
+
+# Single-quoted heredoc - no expansion (literal text)
+cat > multiline_singlequoted_heredoc.txt << 'EOF'
+Line 1 (single-quoted heredoc does not support expansion)
+Line 2 with special chars: $HOME
+Line 3 with command substitution: $(pwd)
+Line 4 with backticks: `pwd`
+EOF
+
+cat multiline_singlequoted_heredoc.txt
+
+# Double-quoted heredoc - no expansion (same as single-quoted in bash)
+cat > multiline_doublequoted_heredoc.txt << "EOF"
+Line 1 (double-quoted heredoc does not support expansion)
+Line 2 with special chars: $HOME
+Line 3 with command substitution: $(pwd)
+Line 4 with backticks: `pwd`
+EOF
+
+cat multiline_doublequoted_heredoc.txt
+
+pwd && \
+ ls && \
+ echo "This is a backslash multi-line command"
+
+my_function() {
+  local name="$1"
+  echo "Hello, $name! (this is a multiline function)"
+}
+
+my_function "World"
+
+#_ECHO_# Questions?
+#_ECHO_#

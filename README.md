@@ -12,9 +12,10 @@ It allows the demo operator to step through commands one by one, type additional
 - Simulates **live typing** with adjustable speed and color
 - Allows **manual control** of demo flow — press Return once to show a command, again to run it
 - Supports **ad-hoc commands** between scripted lines
-- Keeps **command history** and aupports **in-line editing** using arrow keys
+- Keeps **command history** and supports **in-line editing** using arrow keys
 - Respects `#_ECHO_ON` / `#_ECHO_OFF` flags for interactive or silent execution
 - Can start execution from any line number in the file
+- Supports scripted **multiline commands** (backslash continuation (\), unclosed quotes, heredocs (<< EOF), and block constructs (if/fi, for/while/done, case/esac, function/{}))
 
 ---
 
@@ -38,8 +39,7 @@ Copy `demorunner.sh` to a directory included in your `PATH` for convenient use.
 
 ### Basic Example
 
-
-See (sample_commands.txt)[sample_commands.txt]
+See [sample_commands.txt](sample_commands.txt) and [sample_multiline_commands.txt](sample_multiline_commands.txt) for examples.
 
 ```bash
 ./demorunner.sh sample_commands.txt
@@ -74,34 +74,43 @@ Command-line arguments:
   start-with-line-number  - Line number in the commands file at which to begin execution. Optional. Default is 1.
                             The most recent #_ECHO_ON or #_ECHO_OFF flag above this line will still be respected.
 
-The following flags can be used in the commands file:
-  #_ECHO_ON   - Enables interactive echoing; subsequent commands are shown and executed one by one.
-  #_ECHO_OFF  - Disables interactive echoing; subsequent commands are executed silently (no prompts or typing).
-                Note: command output still appears normally unless redirected (e.g., '> /dev/null').
-  #_ECHO_#    - Strips tag and echoes the rest of the line as a comment (prefixed with #).
-  #_ECHO_E_#  - Same as #_ECHO_#, but evaluates variables before echoing the comment.
+Commands file features:
+  The following flags can be used in the commands file:
+    #_ECHO_ON   - Enables interactive echoing; subsequent commands are shown and executed one by one.
+    #_ECHO_OFF  - Disables interactive echoing; subsequent commands are executed silently (no prompts or typing).
+                  Note: command output still appears normally unless redirected (e.g., '> /dev/null').
+    #_ECHO_#    - Strips tag and echoes the rest of the line as a comment (prefixed with #).
+    #_ECHO_E_#  - Same as #_ECHO_#, but evaluates variables before echoing the comment.
 
-Otherwise, lines starting with # or containing only whitespace will be ignored (as in a normal shell script).
+  Multiline commands are supported:
+    - Backslash continuation (\)
+    - Unclosed quotes (single or double)
+    - Heredocs (<< EOF, << 'EOF', << "EOF")
+    - Block constructs (if/fi, for/while/done, case/esac, function/{})
 
-Environment variables:
-  DEMO_COLOR  - Sets the color of the prompt and the displayed command.
-                May be yellow, blue, white, or black. Default is yellow.
-  DEMO_DELAY  - Controls the simulated typing speed. Default is 15.
-                Set to 0 to disable rate-limiting; increase to make typing appear faster.
+  Otherwise, lines starting with # or containing only whitespace will be ignored (as in a normal shell script).
 
 Interactive features:
   - When #_ECHO_ON is enabled, press Return once to display the next command, and again to execute it.
   - Ad-hoc typing: at the prompt, enter any command; press Return on an empty line to resume scripted commands.
   - Up/Down arrows: browse command history (does not include commands executed silently while #_ECHO_OFF is active).
   - Left/Right arrows: move the cursor for in-line editing.
+
+Environment variables:
+  DEMO_COLOR  - Sets the color of the prompt and the displayed command.
+                May be yellow, blue, white, or black. Default is yellow.
+  DEMO_DELAY  - Controls the simulated typing speed. Default is 15.
+                Set to 0 to disable rate-limiting; increase to make typing appear faster.
 ```
 
 ---
 
 ## ⚠️ Known Limitations
 
-- For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are currently ignored (e.g., Tab, Ctrl+L).
-- Tab autocompletion is currently not supported.
+  - For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are ignored (e.g., Tab, Ctrl+L).
+  - Tab autocompletion is not supported.
+  - Ad-hoc multi-line commands are not supported (only scripted multi-line commands).
+  - For scripted multi-line commands, editing is not supported (left arrow and Backspace are disabled).
 
 ---
 
