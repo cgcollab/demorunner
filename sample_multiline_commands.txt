@@ -56,6 +56,9 @@ EOF
 
 cat multiline_doublequoted_heredoc.txt
 
+cat >> singleline_heredoc.txt <<< "This is a single line heredoc!"
+cat singleline_heredoc.txt
+
 pwd && \
  ls && \
  echo "This is a backslash multi-line command"

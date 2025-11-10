@@ -334,10 +334,13 @@ is_command_complete() {
   
   # Check for incomplete heredoc/EOF FIRST (before quote detection)
   # Handle both quoted and unquoted delimiters: << EOF, << 'EOF', << "EOF", etc.
-  if echo "$cmd" | grep -qE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?'; then
-    # Extract heredoc delimiters (with or without quotes)
-    # First get all heredoc patterns, then extract just the delimiter name
-    local heredoc_patterns=$(echo "$cmd" | grep -oE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?')
+  # Exclude <<< (here-string) which is a single-line operator
+  # Skip heredoc check if line contains <<< (here-string operator)
+  if ! echo "$cmd" | grep -qE '<<<'; then
+    if echo "$cmd" | grep -qE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?'; then
+      # Extract heredoc delimiters (with or without quotes)
+      # First get all heredoc patterns, then extract just the delimiter name
+      local heredoc_patterns=$(echo "$cmd" | grep -oE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?')
     local heredoc_delimiters=""
     for pattern in $heredoc_patterns; do
       # Extract just the delimiter name (remove <<, optional -, spaces, and quotes)
@@ -362,7 +365,8 @@ is_command_complete() {
     if [[ $found_delimiter -eq 0 ]]; then
       return 1  # Incomplete - heredoc not closed
     fi
-  fi
+    fi  # End of heredoc pattern check
+  fi  # End of <<< exclusion check
   
   # Check for unclosed quotes by counting unescaped quotes
   # First, mask out quotes that are part of heredoc delimiters (<< 'EOF' or << "EOF")
