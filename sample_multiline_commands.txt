@@ -70,5 +70,112 @@ my_function() {
 
 my_function "World"
 
+# Multi-line with comments and empty lines
+if [[ "multiline with comments and empty lines" == multi* ]]; then
+  # if this works it will be a miracle
+  echo "multi-line if block with comment: condition is true"
+
+fi
+
+# Nested if blocks with comments
+if [ 1 -eq 1 ]; then
+  # Outer if block comment
+  if [ 2 -eq 2 ]; then
+    # Inner if block comment
+    echo "nested if blocks work"
+  fi
+  # Another comment in outer block
+fi
+
+# For loop with comments and empty lines
+for i in 1 2 3; do
+  # Loop comment
+  echo "iteration $i"
+  
+  # Another comment
+done
+
+# While loop with comments
+counter=0
+while [ $counter -lt 3 ]; do
+  # While loop comment
+  echo "counter is $counter"
+  counter=$((counter + 1))
+  
+done
+
+# Case statement with comments
+case "$1" in
+  start)
+    # Start case comment
+    echo "Starting"
+    ;;
+  stop)
+    # Stop case comment
+    echo "Stopping"
+    ;;
+  *)
+    # Default case comment
+    echo "Unknown"
+    ;;
+esac
+
+# Function with comments and empty lines
+test_function() {
+  # Function comment
+  local var="$1"
+  
+  # Another comment
+  echo "Function received: $var"
+  
+}
+
+test_function "test"
+
+# Block with keywords in quoted strings (should not count as blocks)
+if [ 1 -eq 1 ]; then
+  echo "This has 'if' in quotes but should not count"
+  echo "This has 'for' and 'while' in quotes"
+  echo "This has 'fi' in quotes but should not count"
+fi
+
+# Multiple blocks in sequence
+if [ -f /tmp/test ]; then
+  echo "File exists"
+fi
+
+for file in *.txt; do
+  echo "Processing $file"
+done
+
+# Block with heredoc inside
+if [ 1 -eq 1 ]; then
+  # Comment before heredoc
+  cat << EOF
+This is a heredoc
+inside an if block
+EOF
+  # Comment after heredoc
+fi
+
+# Block with backslash continuation
+if [ 1 -eq 1 ]; then
+  echo "Line 1" && \
+  echo "Line 2" && \
+  echo "Line 3"
+  
+fi
+
+# Complex nested structure
+if [ 1 -eq 1 ]; then
+  for i in 1 2; do
+    # Nested comment
+    if [ $i -eq 1 ]; then
+      echo "Nested if in for loop"
+    fi
+  done
+  # Comment after nested block
+fi
+
 #_ECHO_# Questions?
 #_ECHO_#

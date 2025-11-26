@@ -406,17 +406,119 @@ is_command_complete() {
   fi
   
   # Check for incomplete block constructs
-  local if_count=$(echo "$cmd" | grep -oE '\bif\b' | wc -l | tr -d ' ')
-  local fi_count=$(echo "$cmd" | grep -oE '\bfi\b' | wc -l | tr -d ' ')
-  local for_count=$(echo "$cmd" | grep -oE '\bfor\b' | wc -l | tr -d ' ')
-  local while_count=$(echo "$cmd" | grep -oE '\bwhile\b' | wc -l | tr -d ' ')
-  local do_count=$(echo "$cmd" | grep -oE '\bdo\b' | wc -l | tr -d ' ')
-  local done_count=$(echo "$cmd" | grep -oE '\bdone\b' | wc -l | tr -d ' ')
-  local case_count=$(echo "$cmd" | grep -oE '\bcase\b' | wc -l | tr -d ' ')
-  local esac_count=$(echo "$cmd" | grep -oE '\besac\b' | wc -l | tr -d ' ')
-  local function_count=$(echo "$cmd" | grep -oE '\bfunction\b' | wc -l | tr -d ' ')
-  local left_brace_count=$(echo "$cmd" | grep -oE '\{' | wc -l | tr -d ' ')
-  local right_brace_count=$(echo "$cmd" | grep -oE '\}' | wc -l | tr -d ' ')
+  # First, remove heredoc content, then remove quoted strings, to avoid counting keywords inside them
+  # Remove heredoc content: everything between << DELIMITER and DELIMITER (including delimiter line)
+  local no_heredoc_cmd=""
+  local in_heredoc=0
+  local heredoc_delimiter=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Check if this line starts a heredoc
+    if echo "$line" | grep -qE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?'; then
+      # Extract delimiter
+      local heredoc_pattern=$(echo "$line" | grep -oE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?')
+      heredoc_delimiter=$(echo "$heredoc_pattern" | sed 's/<<-*[[:space:]]*//' | sed "s/^['\"]//" | sed "s/['\"]\$//")
+      in_heredoc=1
+      # Include the heredoc start line (it may contain other code)
+      if [[ -n "$no_heredoc_cmd" ]]; then
+        no_heredoc_cmd="${no_heredoc_cmd}"$'\n'"${line}"
+      else
+        no_heredoc_cmd="${line}"
+      fi
+    elif [[ $in_heredoc -eq 1 ]]; then
+      # Check if this line is the delimiter (with optional leading whitespace)
+      local line_trimmed="${line#"${line%%[![:space:]]*}"}"
+      if [[ "$line_trimmed" == "$heredoc_delimiter" ]] || \
+         [[ "$line_trimmed" == "'$heredoc_delimiter'" ]] || \
+         [[ "$line_trimmed" == "\"$heredoc_delimiter\"" ]]; then
+        # End of heredoc - include delimiter line (it may contain other code)
+        in_heredoc=0
+        heredoc_delimiter=""
+        if [[ -n "$no_heredoc_cmd" ]]; then
+          no_heredoc_cmd="${no_heredoc_cmd}"$'\n'"${line}"
+        else
+          no_heredoc_cmd="${line}"
+        fi
+      fi
+      # If still in heredoc, skip this line (it's heredoc content)
+    else
+      # Not in heredoc - include the line
+      if [[ -n "$no_heredoc_cmd" ]]; then
+        no_heredoc_cmd="${no_heredoc_cmd}"$'\n'"${line}"
+      else
+        no_heredoc_cmd="${line}"
+      fi
+    fi
+  done <<< "$cmd"
+  
+  # Now remove quoted strings from the command (without heredoc content)
+  # Use masked_cmd logic but on no_heredoc_cmd
+  local masked_no_heredoc="$no_heredoc_cmd"
+  masked_no_heredoc=$(echo "$masked_no_heredoc" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
+  
+  local unquoted_cmd=""
+  local in_single_quote=0
+  local in_double_quote=0
+  local i=0
+  while [ $i -lt ${#masked_no_heredoc} ]; do
+    local char="${masked_no_heredoc:$i:1}"
+    local is_escaped=0
+    if [ $i -gt 0 ]; then
+      local prev_char="${masked_no_heredoc:$((i-1)):1}"
+      if [[ "$prev_char" == "\\" ]]; then
+        is_escaped=1
+      fi
+    fi
+    
+    # Only process if not escaped
+    if [[ $is_escaped -eq 0 ]]; then
+      if [[ "$char" == "'" ]] && [[ $in_double_quote -eq 0 ]]; then
+        # Toggle single quote state - don't include the quote character
+        in_single_quote=$((1 - in_single_quote))
+      elif [[ "$char" == "\"" ]] && [[ $in_single_quote -eq 0 ]]; then
+        # Toggle double quote state - don't include the quote character
+        in_double_quote=$((1 - in_double_quote))
+      elif [[ $in_single_quote -eq 0 ]] && [[ $in_double_quote -eq 0 ]]; then
+        # Not inside quotes - include this character
+        unquoted_cmd="${unquoted_cmd}${char}"
+      fi
+      # If inside quotes, skip this character
+    else
+      # Escaped character - include it if not in quotes
+      if [[ $in_single_quote -eq 0 ]] && [[ $in_double_quote -eq 0 ]]; then
+        unquoted_cmd="${unquoted_cmd}${char}"
+      fi
+    fi
+    ((i++))
+  done
+  
+  # Remove comment lines (lines starting with # after optional whitespace) before counting keywords
+  # Split by newlines, filter out comment lines, rejoin
+  local no_comments_cmd=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Remove leading whitespace to check if line starts with #
+    local trimmed_line="${line#"${line%%[![:space:]]*}"}"
+    if [[ ! "$trimmed_line" =~ ^# ]]; then
+      # Not a comment line - include it
+      if [[ -n "$no_comments_cmd" ]]; then
+        no_comments_cmd="${no_comments_cmd}"$'\n'"${line}"
+      else
+        no_comments_cmd="${line}"
+      fi
+    fi
+  done <<< "$unquoted_cmd"
+  
+  # Now count keywords only in unquoted, non-comment parts
+  local if_count=$(echo "$no_comments_cmd" | grep -oE '\bif\b' | wc -l | tr -d ' ')
+  local fi_count=$(echo "$no_comments_cmd" | grep -oE '\bfi\b' | wc -l | tr -d ' ')
+  local for_count=$(echo "$no_comments_cmd" | grep -oE '\bfor\b' | wc -l | tr -d ' ')
+  local while_count=$(echo "$no_comments_cmd" | grep -oE '\bwhile\b' | wc -l | tr -d ' ')
+  local do_count=$(echo "$no_comments_cmd" | grep -oE '\bdo\b' | wc -l | tr -d ' ')
+  local done_count=$(echo "$no_comments_cmd" | grep -oE '\bdone\b' | wc -l | tr -d ' ')
+  local case_count=$(echo "$no_comments_cmd" | grep -oE '\bcase\b' | wc -l | tr -d ' ')
+  local esac_count=$(echo "$no_comments_cmd" | grep -oE '\besac\b' | wc -l | tr -d ' ')
+  local function_count=$(echo "$no_comments_cmd" | grep -oE '\bfunction\b' | wc -l | tr -d ' ')
+  local left_brace_count=$(echo "$no_comments_cmd" | grep -oE '\{' | wc -l | tr -d ' ')
+  local right_brace_count=$(echo "$no_comments_cmd" | grep -oE '\}' | wc -l | tr -d ' ')
   
   # Check for unclosed blocks
   if [[ $((if_count - fi_count)) -gt 0 ]] || \
@@ -456,6 +558,10 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
     if [[ "${first_trimmed}" =~ \\$ ]]; then
       has_backslash_continuation=1
       display_command="${command}"
+    else
+      # Initialize display_command even if first line doesn't have backslash
+      # (backslashes might appear later in the block)
+      display_command="${command}"
     fi
     
     # For regular commands, check if they're complete or need continuation
@@ -466,18 +572,6 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         break  # End of file
       fi
       next_line="${COMMAND_LINES[$ARRAY_INDEX]}"
-      
-      # If we hit an empty line, stop accumulating (unless we have a backslash continuation)
-      if [[ -z "${next_line//[[:space:]]/}" ]]; then
-        trimmed="${command%"${command##*[![:space:]]}"}"
-        if ! [[ "${trimmed}" =~ \\$ ]]; then
-          # Empty line and no backslash continuation - command is complete
-          # Decrement indices since we already incremented them, and the main loop will skip the empty line
-          ((ARRAY_INDEX--))
-          ((LINE_NUMBER--))
-          break
-        fi
-      fi
       
       # If we hit a control flag, stop accumulating (trim whitespace for exact match)
       next_line_trimmed="${next_line#"${next_line%%[![:space:]]*}"}"  # Remove leading whitespace
@@ -491,29 +585,166 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         break
       fi
       
-      # If next line starts with # (and isn't a control flag), stop accumulating
-      if [[ "${next_line}" =~ ^[[:space:]]*# ]] && ! [[ "${next_line}" =~ ^#_ECHO ]]; then
-        prev_trimmed="${command%"${command##*[![:space:]]}"}"
-        if ! [[ "${prev_trimmed}" =~ \\$ ]]; then
+      # Check if we're inside an incomplete block construct
+      # This determines whether to include empty lines and comments as part of the block
+      # Remove heredoc content, then quoted strings, then comments to avoid counting keywords inside them
+      cmd_for_block_check="$command"
+      
+      # First, remove heredoc content
+      no_heredoc_for_block=""
+      in_heredoc_block=0
+      heredoc_delim_block=""
+      while IFS= read -r line || [ -n "$line" ]; do
+        if echo "$line" | grep -qE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?'; then
+          heredoc_pattern_block=$(echo "$line" | grep -oE '<<-?\s*['\''"]?[A-Za-z_][A-Za-z0-9_]*['\''"]?')
+          heredoc_delim_block=$(echo "$heredoc_pattern_block" | sed 's/<<-*[[:space:]]*//' | sed "s/^['\"]//" | sed "s/['\"]\$//")
+          in_heredoc_block=1
+          if [[ -n "$no_heredoc_for_block" ]]; then
+            no_heredoc_for_block="${no_heredoc_for_block}"$'\n'"${line}"
+          else
+            no_heredoc_for_block="${line}"
+          fi
+        elif [[ $in_heredoc_block -eq 1 ]]; then
+          line_trimmed_block="${line#"${line%%[![:space:]]*}"}"
+          if [[ "$line_trimmed_block" == "$heredoc_delim_block" ]] || \
+             [[ "$line_trimmed_block" == "'$heredoc_delim_block'" ]] || \
+             [[ "$line_trimmed_block" == "\"$heredoc_delim_block\"" ]]; then
+            in_heredoc_block=0
+            heredoc_delim_block=""
+            if [[ -n "$no_heredoc_for_block" ]]; then
+              no_heredoc_for_block="${no_heredoc_for_block}"$'\n'"${line}"
+            else
+              no_heredoc_for_block="${line}"
+            fi
+          fi
+        else
+          if [[ -n "$no_heredoc_for_block" ]]; then
+            no_heredoc_for_block="${no_heredoc_for_block}"$'\n'"${line}"
+          else
+            no_heredoc_for_block="${line}"
+          fi
+        fi
+      done <<< "$cmd_for_block_check"
+      
+      # Remove heredoc quote patterns
+      cmd_for_block_check=$(echo "$no_heredoc_for_block" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
+      unquoted_for_block=""
+      in_single_q=0
+      in_double_q=0
+      j=0
+      while [ $j -lt ${#cmd_for_block_check} ]; do
+        ch="${cmd_for_block_check:$j:1}"
+        is_esc=0
+        if [ $j -gt 0 ]; then
+          prev_ch="${cmd_for_block_check:$((j-1)):1}"
+          if [[ "$prev_ch" == "\\" ]]; then
+            is_esc=1
+          fi
+        fi
+        if [[ $is_esc -eq 0 ]]; then
+          if [[ "$ch" == "'" ]] && [[ $in_double_q -eq 0 ]]; then
+            in_single_q=$((1 - in_single_q))
+          elif [[ "$ch" == "\"" ]] && [[ $in_single_q -eq 0 ]]; then
+            in_double_q=$((1 - in_double_q))
+          elif [[ $in_single_q -eq 0 ]] && [[ $in_double_q -eq 0 ]]; then
+            unquoted_for_block="${unquoted_for_block}${ch}"
+          fi
+        else
+          if [[ $in_single_q -eq 0 ]] && [[ $in_double_q -eq 0 ]]; then
+            unquoted_for_block="${unquoted_for_block}${ch}"
+          fi
+        fi
+        ((j++))
+      done
+      # Remove comment lines before counting keywords
+      no_comments_for_block=""
+      while IFS= read -r line || [ -n "$line" ]; do
+        trimmed_line="${line#"${line%%[![:space:]]*}"}"
+        if [[ ! "$trimmed_line" =~ ^# ]]; then
+          if [[ -n "$no_comments_for_block" ]]; then
+            no_comments_for_block="${no_comments_for_block}"$'\n'"${line}"
+          else
+            no_comments_for_block="${line}"
+          fi
+        fi
+      done <<< "$unquoted_for_block"
+      if_count=$(echo "$no_comments_for_block" | grep -oE '\bif\b' | wc -l | tr -d ' ')
+      fi_count=$(echo "$no_comments_for_block" | grep -oE '\bfi\b' | wc -l | tr -d ' ')
+      for_count=$(echo "$no_comments_for_block" | grep -oE '\bfor\b' | wc -l | tr -d ' ')
+      while_count=$(echo "$no_comments_for_block" | grep -oE '\bwhile\b' | wc -l | tr -d ' ')
+      do_count=$(echo "$no_comments_for_block" | grep -oE '\bdo\b' | wc -l | tr -d ' ')
+      done_count=$(echo "$no_comments_for_block" | grep -oE '\bdone\b' | wc -l | tr -d ' ')
+      case_count=$(echo "$no_comments_for_block" | grep -oE '\bcase\b' | wc -l | tr -d ' ')
+      esac_count=$(echo "$no_comments_for_block" | grep -oE '\besac\b' | wc -l | tr -d ' ')
+      function_count=$(echo "$no_comments_for_block" | grep -oE '\bfunction\b' | wc -l | tr -d ' ')
+      left_brace_count=$(echo "$no_comments_for_block" | grep -oE '\{' | wc -l | tr -d ' ')
+      right_brace_count=$(echo "$no_comments_for_block" | grep -oE '\}' | wc -l | tr -d ' ')
+      inside_block=0
+      if [[ $((if_count - fi_count)) -gt 0 ]] || \
+         [[ $((for_count + while_count - done_count)) -gt 0 ]] || \
+         [[ $((case_count - esac_count)) -gt 0 ]] || \
+         [[ $((function_count + left_brace_count - right_brace_count)) -gt 0 ]]; then
+        inside_block=1
+      fi
+      
+      # If we hit an empty line, include it if inside a block or if command has backslash continuation
+      # Otherwise, empty lines separate commands, so break to let is_command_complete check handle it
+      if [[ -z "${next_line//[[:space:]]/}" ]]; then
+        trimmed="${command%"${command##*[![:space:]]}"}"
+        if [[ "${trimmed}" =~ \\$ ]]; then
+          # Backslash continuation - always include empty line
+          :
+        elif [[ $inside_block -eq 1 ]]; then
+          # Inside incomplete block - include empty line as part of the block
+          :
+        else
+          # Empty line and no backslash continuation and not in block - this separates commands
+          # Test if command would be complete - if adding the empty line makes it complete, it's just a separator
+          # Decrement indices since we already incremented them, and the main loop will skip the empty line
+          ((ARRAY_INDEX--))
+          ((LINE_NUMBER--))
           break
         fi
       fi
       
-      # Track original format for display (for backslash continuation)
-      if [[ $has_backslash_continuation -eq 1 ]]; then
-        display_command="${display_command}"$'\n'"${next_line}"
+      # If next line starts with # (and isn't a control flag), include it if inside a block or if command has backslash continuation
+      # Otherwise, comments separate commands, so break
+      if [[ "${next_line}" =~ ^[[:space:]]*# ]] && ! [[ "${next_line}" =~ ^#_ECHO ]]; then
+        prev_trimmed="${command%"${command##*[![:space:]]}"}"
+        if [[ "${prev_trimmed}" =~ \\$ ]]; then
+          # Backslash continuation - always include comment
+          :
+        elif [[ $inside_block -eq 1 ]]; then
+          # Inside incomplete block - include comment as part of the block
+          :
+        else
+          # Comment and no backslash continuation and not in block - this separates commands
+          # Decrement indices since we already incremented them, and the main loop will skip the comment
+          ((ARRAY_INDEX--))
+          ((LINE_NUMBER--))
+          break
+        fi
       fi
+      
+      # Track original format for display (always preserve original format)
+      display_command="${display_command}"$'\n'"${next_line}"
       
       # Combine lines
       trimmed="${command%"${command##*[![:space:]]}"}"
       if [[ "${trimmed}" =~ \\$ ]]; then
         # Backslash continuation - remove backslash and combine with space
+        has_backslash_continuation=1  # Mark that we have backslash continuation
         command="${command%\\}"
         command="${command%"${command##*[![:space:]]}"}"
         command="${command} ${next_line}"
       else
         # No backslash but command incomplete - combine with newline
         command="${command}"$'\n'"${next_line}"
+      fi
+      
+      # Check if command is now complete after combining - if so, exit loop
+      if is_command_complete "$command"; then
+        break
       fi
     done
   fi
