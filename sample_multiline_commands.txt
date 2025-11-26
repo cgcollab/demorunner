@@ -26,6 +26,12 @@ else
   echo "multi-line if block: condition is false"
 fi
 
+if [ 1 -lt 2 ]; then
+  echo "multi-line if block: condition is true" # This is an inline comment with the word if 
+else
+  echo "multi-line if block: condition is false"
+fi
+
 # Unquoted heredoc - expands variables and command substitution
 cat > multiline_unquoted_heredoc.txt << EOF
 Line 1 (unquoted heredoc supports expansion)

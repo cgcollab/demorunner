@@ -450,9 +450,51 @@ is_command_complete() {
     fi
   done <<< "$cmd"
   
-  # Now remove quoted strings from the command (without heredoc content)
-  # Use masked_cmd logic but on no_heredoc_cmd
-  local masked_no_heredoc="$no_heredoc_cmd"
+  # Now remove inline comments (everything after # that's not inside quotes)
+  # Process line by line to remove inline comments
+  local no_inline_comments_cmd=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    local in_single_q=0
+    local in_double_q=0
+    local j=0
+    local line_without_comment=""
+    while [ $j -lt ${#line} ]; do
+      local ch="${line:$j:1}"
+      local is_esc=0
+      if [ $j -gt 0 ]; then
+        local prev_ch="${line:$((j-1)):1}"
+        if [[ "$prev_ch" == "\\" ]]; then
+          is_esc=1
+        fi
+      fi
+      if [[ $is_esc -eq 0 ]]; then
+        if [[ "$ch" == "'" ]] && [[ $in_double_q -eq 0 ]]; then
+          in_single_q=$((1 - in_single_q))
+          line_without_comment="${line_without_comment}${ch}"
+        elif [[ "$ch" == "\"" ]] && [[ $in_single_q -eq 0 ]]; then
+          in_double_q=$((1 - in_double_q))
+          line_without_comment="${line_without_comment}${ch}"
+        elif [[ "$ch" == "#" ]] && [[ $in_single_q -eq 0 ]] && [[ $in_double_q -eq 0 ]]; then
+          # Found # outside quotes - this starts a comment, stop here
+          break
+        else
+          line_without_comment="${line_without_comment}${ch}"
+        fi
+      else
+        line_without_comment="${line_without_comment}${ch}"
+      fi
+      ((j++))
+    done
+    if [[ -n "$no_inline_comments_cmd" ]]; then
+      no_inline_comments_cmd="${no_inline_comments_cmd}"$'\n'"${line_without_comment}"
+    else
+      no_inline_comments_cmd="${line_without_comment}"
+    fi
+  done <<< "$no_heredoc_cmd"
+  
+  # Now remove quoted strings from the command (without heredoc content and inline comments)
+  # Use masked_cmd logic but on no_inline_comments_cmd
+  local masked_no_heredoc="$no_inline_comments_cmd"
   masked_no_heredoc=$(echo "$masked_no_heredoc" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
   
   local unquoted_cmd=""
@@ -626,8 +668,49 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         fi
       done <<< "$cmd_for_block_check"
       
+      # Remove inline comments (everything after # that's not inside quotes)
+      no_inline_comments_for_block=""
+      while IFS= read -r line || [ -n "$line" ]; do
+        in_single_q_line=0
+        in_double_q_line=0
+        j_line=0
+        line_without_comment_block=""
+        while [ $j_line -lt ${#line} ]; do
+          ch_line="${line:$j_line:1}"
+          is_esc_line=0
+          if [ $j_line -gt 0 ]; then
+            prev_ch_line="${line:$((j_line-1)):1}"
+            if [[ "$prev_ch_line" == "\\" ]]; then
+              is_esc_line=1
+            fi
+          fi
+          if [[ $is_esc_line -eq 0 ]]; then
+            if [[ "$ch_line" == "'" ]] && [[ $in_double_q_line -eq 0 ]]; then
+              in_single_q_line=$((1 - in_single_q_line))
+              line_without_comment_block="${line_without_comment_block}${ch_line}"
+            elif [[ "$ch_line" == "\"" ]] && [[ $in_single_q_line -eq 0 ]]; then
+              in_double_q_line=$((1 - in_double_q_line))
+              line_without_comment_block="${line_without_comment_block}${ch_line}"
+            elif [[ "$ch_line" == "#" ]] && [[ $in_single_q_line -eq 0 ]] && [[ $in_double_q_line -eq 0 ]]; then
+              # Found # outside quotes - this starts a comment, stop here
+              break
+            else
+              line_without_comment_block="${line_without_comment_block}${ch_line}"
+            fi
+          else
+            line_without_comment_block="${line_without_comment_block}${ch_line}"
+          fi
+          ((j_line++))
+        done
+        if [[ -n "$no_inline_comments_for_block" ]]; then
+          no_inline_comments_for_block="${no_inline_comments_for_block}"$'\n'"${line_without_comment_block}"
+        else
+          no_inline_comments_for_block="${line_without_comment_block}"
+        fi
+      done <<< "$no_heredoc_for_block"
+      
       # Remove heredoc quote patterns
-      cmd_for_block_check=$(echo "$no_heredoc_for_block" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
+      cmd_for_block_check=$(echo "$no_inline_comments_for_block" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
       unquoted_for_block=""
       in_single_q=0
       in_double_q=0
