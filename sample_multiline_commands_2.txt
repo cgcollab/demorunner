@@ -1,0 +1,25 @@
+#_ECHO_OFF
+
+# Prep for demo
+mkdir -p temp-demorunner
+cd temp-demorunner
+[ ! -f report.json ] && curl -k -s https://localhost:9443/actuator/governance > report.json
+
+DEMO_DELAY=0
+
+#_ECHO_ON
+
+cat report.json |    ### ONE URL = Complete security posture. No config spelunking, no manual audits.
+  jq '.results'
+
+cat report.json |    ### Runtime reality check: What's ACTUALLY running? (not what you configured)
+  jq '.details.serverTls.connectors[] | {
+    port,
+    secure,
+    enabledProtocols: .sslConfigs[0].enabledProtocols,
+    certExpiration: .sslConfigs[0].certs[0].certificateExpiration,
+    enabledCiphers: .sslConfigs[0].enabledCiphers
+  }'
+
+#_ECHO_# Questions?
+#_ECHO_#
