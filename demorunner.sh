@@ -323,13 +323,89 @@ done < "${COMMANDS_FILE}"
 
 # Function to check if a command line is complete (not continued on next line)
 # Returns 0 if complete, 1 if incomplete
+# Helper function to strip inline comments from a single line
+# Returns the line with comments removed (everything after # outside quotes)
+_strip_inline_comment_from_line() {
+  local line="$1"
+  local result=""
+  local in_single_q=0
+  local in_double_q=0
+  local i=0
+  while [ $i -lt ${#line} ]; do
+    local ch="${line:$i:1}"
+    local is_esc=0
+    if [ $i -gt 0 ]; then
+      local prev_ch="${line:$((i-1)):1}"
+      if [[ "$prev_ch" == "\\" ]]; then
+        is_esc=1
+      fi
+    fi
+    if [[ $is_esc -eq 0 ]]; then
+      if [[ "$ch" == "'" ]] && [[ $in_double_q -eq 0 ]]; then
+        in_single_q=$((1 - in_single_q))
+        result="${result}${ch}"
+      elif [[ "$ch" == "\"" ]] && [[ $in_single_q -eq 0 ]]; then
+        in_double_q=$((1 - in_double_q))
+        result="${result}${ch}"
+      elif [[ "$ch" == "#" ]] && [[ $in_single_q -eq 0 ]] && [[ $in_double_q -eq 0 ]]; then
+        break
+      else
+        result="${result}${ch}"
+      fi
+    else
+      result="${result}${ch}"
+    fi
+    ((i++))
+  done
+  echo "$result"
+}
+
+# Helper function to strip comments from a full command (removes inline comments and comment-only lines)
+_strip_comments_from_command() {
+  local cmd="$1"
+  local result=""
+  local first_line=1
+  while IFS= read -r line || [ -n "$line" ]; do
+    local line_no_comment=$(_strip_inline_comment_from_line "$line")
+    # Skip comment-only lines entirely
+    if [[ -z "${line_no_comment//[[:space:]]/}" ]] && [[ "${line}" =~ ^[[:space:]]*# ]]; then
+      continue
+    fi
+    if [[ $first_line -eq 1 ]]; then
+      result="${line_no_comment}"
+      first_line=0
+    else
+      result="${result}"$'\n'"${line_no_comment}"
+    fi
+  done <<< "$cmd"
+  echo "$result"
+}
+
 is_command_complete() {
   local cmd="$1"
   local trimmed="${cmd%"${cmd##*[![:space:]]}"}"  # Remove trailing whitespace
   
+  # Check for backslash/pipe continuation on the last line
+  # Need to remove inline comments first to check properly
+  # Get the last non-empty line (in case command ends with empty line)
+  local last_line=$(echo "$cmd" | grep -v '^[[:space:]]*$' | tail -n 1)
+  if [[ -z "$last_line" ]]; then
+    # If all lines are empty, get the actual last line
+    last_line=$(echo "$cmd" | tail -n 1)
+  fi
+  # Use helper function to strip inline comments
+  local last_line_no_comment=$(_strip_inline_comment_from_line "$last_line")
+  local last_line_no_comment_trimmed="${last_line_no_comment%"${last_line_no_comment##*[![:space:]]}"}"
+  
+  
   # Check for backslash continuation (most common case)
-  if [[ "${trimmed}" =~ \\$ ]]; then
+  if [[ "${last_line_no_comment_trimmed}" =~ \\$ ]]; then
     return 1  # Incomplete - has backslash continuation
+  fi
+  
+  # Check for pipe continuation (| at end of line indicates command continues)
+  if [[ "${last_line_no_comment_trimmed}" =~ \|$ ]]; then
+    return 1  # Incomplete - has pipe continuation
   fi
   
   # Check for incomplete heredoc/EOF FIRST (before quote detection)
@@ -579,8 +655,9 @@ is_command_complete() {
 while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
   command="${COMMAND_LINES[$ARRAY_INDEX]}"
   first_line_number=$LINE_NUMBER
-  display_command=""  # For backslash-continued commands, preserve original format
+  display_command=""  # For backslash/pipe-continued commands, preserve original format
   has_backslash_continuation=0
+  has_pipe_continuation=0
   
   # Skip empty lines and comments before checking for multi-line
   if [[ -z "${command//[[:space:]]/}" ]] || ([[ "${command}" =~ ^#.* ]] && ! [[ "${command}" =~ ^#_ECHO ]]); then
@@ -595,19 +672,59 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
     # Process these normally (they're handled below)
     :
   else
-    # Check if first line has backslash continuation
+    # Check if first line has backslash or pipe continuation (strip inline comments first)
     first_trimmed="${command%"${command##*[![:space:]]}"}"
-    if [[ "${first_trimmed}" =~ \\$ ]]; then
+    # Remove inline comments from first line to check for continuation
+    first_line_no_comment=""
+    in_single_q_first=0
+    in_double_q_first=0
+    i_first=0
+    while [ $i_first -lt ${#first_trimmed} ]; do
+      ch_first="${first_trimmed:$i_first:1}"
+      is_esc_first=0
+      if [ $i_first -gt 0 ]; then
+        prev_ch_first="${first_trimmed:$((i_first-1)):1}"
+        if [[ "$prev_ch_first" == "\\" ]]; then
+          is_esc_first=1
+        fi
+      fi
+      if [[ $is_esc_first -eq 0 ]]; then
+        if [[ "$ch_first" == "'" ]] && [[ $in_double_q_first -eq 0 ]]; then
+          in_single_q_first=$((1 - in_single_q_first))
+          first_line_no_comment="${first_line_no_comment}${ch_first}"
+        elif [[ "$ch_first" == "\"" ]] && [[ $in_single_q_first -eq 0 ]]; then
+          in_double_q_first=$((1 - in_double_q_first))
+          first_line_no_comment="${first_line_no_comment}${ch_first}"
+        elif [[ "$ch_first" == "#" ]] && [[ $in_single_q_first -eq 0 ]] && [[ $in_double_q_first -eq 0 ]]; then
+          break
+        else
+          first_line_no_comment="${first_line_no_comment}${ch_first}"
+        fi
+      else
+        first_line_no_comment="${first_line_no_comment}${ch_first}"
+      fi
+      ((i_first++))
+    done
+    first_line_no_comment_trimmed="${first_line_no_comment%"${first_line_no_comment##*[![:space:]]}"}"
+    
+    if [[ "${first_line_no_comment_trimmed}" =~ \\$ ]]; then
       has_backslash_continuation=1
-      display_command="${command}"
+      display_command="${command}"  # Preserve original with inline comment for display
+    elif [[ "${first_line_no_comment_trimmed}" =~ \|$ ]]; then
+      has_pipe_continuation=1
+      display_command="${command}"  # Preserve original with inline comment for display
     else
-      # Initialize display_command even if first line doesn't have backslash
-      # (backslashes might appear later in the block)
+      # Initialize display_command even if first line doesn't have backslash/pipe
+      # (backslashes/pipes might appear later in the block)
       display_command="${command}"
     fi
     
     # For regular commands, check if they're complete or need continuation
+    comment_after_continuation=0  # Initialize flag for comment skipping
     while ! is_command_complete "$command"; do
+      # Reset comment flag at start of each iteration (before getting next line)
+      comment_after_continuation=0
+      
       ((ARRAY_INDEX++))
       ((LINE_NUMBER++))
       if [ $ARRAY_INDEX -ge ${#COMMAND_LINES[@]} ]; then
@@ -800,12 +917,54 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         inside_quotes=1
       fi
       
-      # If we hit an empty line, include it if inside quotes, inside a block, or if command has backslash continuation
+      # If we hit an empty line, include it if inside quotes, inside a block, or if command has backslash/pipe continuation
       # Otherwise, empty lines separate commands, so break to let is_command_complete check handle it
       if [[ -z "${next_line//[[:space:]]/}" ]]; then
-        trimmed="${command%"${command##*[![:space:]]}"}"
-        if [[ "${trimmed}" =~ \\$ ]]; then
+        # Check the last non-empty line of the command for continuation markers (strip inline comments first)
+        last_line_for_empty=$(echo "$command" | grep -v '^[[:space:]]*$' | tail -n 1)
+        if [[ -z "$last_line_for_empty" ]]; then
+          # If all lines are empty, get the actual last line
+          last_line_for_empty=$(echo "$command" | tail -n 1)
+        fi
+        last_line_trimmed_for_empty="${last_line_for_empty%"${last_line_for_empty##*[![:space:]]}"}"
+        # Remove inline comments from the last line
+        last_line_no_comment_for_empty=""
+        in_single_q_empty=0
+        in_double_q_empty=0
+        l_empty=0
+        while [ $l_empty -lt ${#last_line_trimmed_for_empty} ]; do
+          ch_empty="${last_line_trimmed_for_empty:$l_empty:1}"
+          is_esc_empty=0
+          if [ $l_empty -gt 0 ]; then
+            prev_ch_empty="${last_line_trimmed_for_empty:$((l_empty-1)):1}"
+            if [[ "$prev_ch_empty" == "\\" ]]; then
+              is_esc_empty=1
+            fi
+          fi
+          if [[ $is_esc_empty -eq 0 ]]; then
+            if [[ "$ch_empty" == "'" ]] && [[ $in_double_q_empty -eq 0 ]]; then
+              in_single_q_empty=$((1 - in_single_q_empty))
+              last_line_no_comment_for_empty="${last_line_no_comment_for_empty}${ch_empty}"
+            elif [[ "$ch_empty" == "\"" ]] && [[ $in_single_q_empty -eq 0 ]]; then
+              in_double_q_empty=$((1 - in_double_q_empty))
+              last_line_no_comment_for_empty="${last_line_no_comment_for_empty}${ch_empty}"
+            elif [[ "$ch_empty" == "#" ]] && [[ $in_single_q_empty -eq 0 ]] && [[ $in_double_q_empty -eq 0 ]]; then
+              break
+            else
+              last_line_no_comment_for_empty="${last_line_no_comment_for_empty}${ch_empty}"
+            fi
+          else
+            last_line_no_comment_for_empty="${last_line_no_comment_for_empty}${ch_empty}"
+          fi
+          ((l_empty++))
+        done
+        last_line_no_comment_trimmed_empty="${last_line_no_comment_for_empty%"${last_line_no_comment_for_empty##*[![:space:]]}"}"
+        
+        if [[ "${last_line_no_comment_trimmed_empty}" =~ \\$ ]]; then
           # Backslash continuation - always include empty line
+          :
+        elif [[ "${last_line_no_comment_trimmed_empty}" =~ \|$ ]]; then
+          # Pipe continuation - always include empty line
           :
         elif [[ $inside_quotes -eq 1 ]]; then
           # Inside unclosed quotes - include empty line as part of the quoted command
@@ -814,7 +973,7 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
           # Inside incomplete block - include empty line as part of the block
           :
         else
-          # Empty line and no backslash continuation and not in quotes and not in block - this separates commands
+          # Empty line and no backslash/pipe continuation and not in quotes and not in block - this separates commands
           # Test if command would be complete - if adding the empty line makes it complete, it's just a separator
           # Decrement indices since we already incremented them, and the main loop will skip the empty line
           ((ARRAY_INDEX--))
@@ -823,13 +982,33 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         fi
       fi
       
-      # If next line starts with # (and isn't a control flag), include it if inside quotes, inside a block, or if command has backslash continuation
+      # If next line starts with # (and isn't a control flag), include it if inside quotes, inside a block, or if command has backslash/pipe continuation
       # Otherwise, comments separate commands, so break
       if [[ "${next_line}" =~ ^[[:space:]]*# ]] && ! [[ "${next_line}" =~ ^#_ECHO ]]; then
-        prev_trimmed="${command%"${command##*[![:space:]]}"}"
-        if [[ "${prev_trimmed}" =~ \\$ ]]; then
-          # Backslash continuation - always include comment
-          :
+        # Check the last non-empty line of the accumulated command for continuation markers
+        # Need to check the actual last line, not just trimmed version, to handle inline comments
+        last_line_of_command=$(echo "$command" | grep -v '^[[:space:]]*$' | tail -n 1)
+        if [[ -z "$last_line_of_command" ]]; then
+          # If all lines are empty, get the actual last line
+          last_line_of_command=$(echo "$command" | tail -n 1)
+        fi
+        # Use helper function to strip inline comments from the last line
+        last_line_no_comment=$(_strip_inline_comment_from_line "$last_line_of_command")
+        last_line_no_comment_trimmed="${last_line_no_comment%"${last_line_no_comment##*[![:space:]]}"}"
+        if [[ "${last_line_no_comment_trimmed}" =~ \\$ ]]; then
+          # Backslash continuation - include comment in display but skip it in command execution
+          # Add to display_command for display purposes
+          display_command="${display_command}"$'\n'"${next_line}"
+          # Skip adding to command - comments can't be part of executable syntax
+          # Continue to next line without breaking
+          comment_after_continuation=1
+        elif [[ "${last_line_no_comment_trimmed}" =~ \|$ ]]; then
+          # Pipe continuation - include comment in display but skip it in command execution
+          # Add to display_command for display purposes
+          display_command="${display_command}"$'\n'"${next_line}"
+          # Skip adding to command - comments can't be part of executable syntax
+          # Continue to next line without breaking (the continue at end of comment handling will skip normal processing)
+          comment_after_continuation=1
         elif [[ $inside_quotes -eq 1 ]]; then
           # Inside unclosed quotes - include comment as part of the quoted command
           :
@@ -837,7 +1016,7 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
           # Inside incomplete block - include comment as part of the block
           :
         else
-          # Comment and no backslash continuation and not in quotes and not in block - this separates commands
+          # Comment and no backslash/pipe continuation and not in quotes and not in block - this separates commands
           # Decrement indices since we already incremented them, and the main loop will skip the comment
           ((ARRAY_INDEX--))
           ((LINE_NUMBER--))
@@ -845,19 +1024,73 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         fi
       fi
       
+      # If we handled a comment after pipe/backslash above, skip adding it to command and continue to next line
+      if [[ "${comment_after_continuation:-0}" -eq 1 ]]; then
+        comment_after_continuation=0
+        # Continue loop to get next line (don't add comment to command)
+        continue
+      fi
+      
       # Track original format for display (always preserve original format)
       display_command="${display_command}"$'\n'"${next_line}"
       
-      # Combine lines
-      trimmed="${command%"${command##*[![:space:]]}"}"
-      if [[ "${trimmed}" =~ \\$ ]]; then
+      # Combine lines - need to check last non-empty line without inline comments for continuation markers
+      last_line_for_combine=$(echo "$command" | grep -v '^[[:space:]]*$' | tail -n 1)
+      if [[ -z "$last_line_for_combine" ]]; then
+        # If all lines are empty, get the actual last line
+        last_line_for_combine=$(echo "$command" | tail -n 1)
+      fi
+      last_line_trimmed_for_combine="${last_line_for_combine%"${last_line_for_combine##*[![:space:]]}"}"
+      # Use helper function to remove inline comments from the last line to check for pipe/backslash
+      last_line_no_comment_for_combine=$(_strip_inline_comment_from_line "$last_line_trimmed_for_combine")
+      last_line_no_comment_trimmed_combine="${last_line_no_comment_for_combine%"${last_line_no_comment_for_combine##*[![:space:]]}"}"
+      
+      if [[ "${last_line_no_comment_trimmed_combine}" =~ \\$ ]]; then
         # Backslash continuation - remove backslash and combine with space
         has_backslash_continuation=1  # Mark that we have backslash continuation
-        command="${command%\\}"
-        command="${command%"${command##*[![:space:]]}"}"
+        # Remove backslash from the last line (need to strip inline comment first, then remove backslash)
+        # Actually, we need to remove backslash from the original line, not the comment-stripped version
+        # So we'll work with the original last line
+        last_line_original=$(echo "$command" | tail -n 1)
+        # Remove trailing backslash (might have whitespace after it)
+        last_line_no_backslash="${last_line_original%\\}"
+        last_line_no_backslash="${last_line_no_backslash%"${last_line_no_backslash##*[![:space:]]}"}"
+        # Replace the last line in command
+        # Use sed to remove last line instead of head -n -1 (more portable)
+        command_without_last=$(echo "$command" | sed '$d' 2>/dev/null || echo "")
+        if [[ -n "$command_without_last" ]]; then
+          command="${command_without_last}"$'\n'"${last_line_no_backslash}"
+        else
+          command="${last_line_no_backslash}"
+        fi
         command="${command} ${next_line}"
+      elif [[ "${last_line_no_comment_trimmed_combine}" =~ \|$ ]]; then
+        # Pipe continuation - keep pipe and combine with space (pipe stays, just add next line)
+        has_pipe_continuation=1  # Mark that we have pipe continuation
+        # Strip inline comment from the last non-empty line using helper function, then combine with next_line
+        # Find the last non-empty line (the one with the pipe)
+        last_non_empty_line=$(echo "$command" | grep -v '^[[:space:]]*$' | tail -n 1)
+        if [[ -z "$last_non_empty_line" ]]; then
+          # If all lines are empty, get the actual last line
+          last_non_empty_line=$(echo "$command" | tail -n 1)
+        fi
+        last_line_stripped=$(_strip_inline_comment_from_line "$last_non_empty_line")
+        # Remove trailing whitespace before combining (we'll add a space before next_line)
+        last_line_stripped_trimmed="${last_line_stripped%"${last_line_stripped##*[![:space:]]}"}"
+        # Replace the last non-empty line in command with the stripped version, then combine with next_line on the same line
+        # Find the line number of the last non-empty line
+        last_non_empty_line_num=$(echo "$command" | grep -n '.' | tail -n 1 | cut -d: -f1)
+        if [[ -n "$last_non_empty_line_num" && $last_non_empty_line_num -gt 1 ]]; then
+          # Get lines before the last non-empty line
+          lines_before=$(echo "$command" | head -n $((last_non_empty_line_num - 1)) 2>/dev/null || echo "")
+          # Rebuild command: lines before + (stripped last line + space + next_line combined on same line)
+          command="${lines_before}"$'\n'"${last_line_stripped_trimmed} ${next_line}"
+        else
+          # First line or all empty - just combine directly
+          command="${last_line_stripped_trimmed} ${next_line}"
+        fi
       else
-        # No backslash but command incomplete - combine with newline
+        # No backslash or pipe but command incomplete - combine with newline
         command="${command}"$'\n'"${next_line}"
       fi
       
@@ -900,6 +1133,12 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
     continue
   fi
 
+  # Strip inline comments from command before execution using helper function
+  command_no_inline_comments=$(_strip_comments_from_command "$command")
+  # Preserve original command for display (with comments), but use stripped version for execution
+  command_for_display="${command}"
+  command="${command_no_inline_comments}"
+  
   # When ECHO_OFF is active, execute command immediately (non-interactively);
   # output still appears unless explicitly redirected by the command itself.
   if [[ $ECHO == "off" ]]; then
@@ -931,21 +1170,23 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
 
   # Simulate typing of next demo command, then pause for user to edit or confirm before execution
   printf "%b" "${SET_FONT}"
-  # Use original format for backslash-continued commands, otherwise use processed command
-  if [[ $has_backslash_continuation -eq 1 ]] && [[ -n "${display_command}" ]]; then
+  # Use original format for backslash/pipe-continued commands, otherwise use processed command
+  if [[ ($has_backslash_continuation -eq 1 || $has_pipe_continuation -eq 1) ]] && [[ -n "${display_command}" ]]; then
     printf "%s" "${display_command}" | pv -qL "${DEMO_DELAY}"
     # For editing, use the original format so user can edit the multi-line version
     command_for_edit="${display_command}"
   else
-    printf "%s" "${command}" | pv -qL "${DEMO_DELAY}"
-    command_for_edit="${command}"
+    # Use command_for_display if available (preserves comments), otherwise use command
+    display_cmd="${command_for_display:-${command}}"
+    printf "%s" "${display_cmd}" | pv -qL "${DEMO_DELAY}"
+    command_for_edit="${display_cmd}"
   fi
   PROMPT_STR=""
   edited=$(get_user_input "${command_for_edit}")
   echo
   printf "%b" "${RESET_FONT}"
-  # For execution, convert backslash-continued commands back to combined format if needed
-  if [[ $has_backslash_continuation -eq 1 ]] && [[ -n "${display_command}" ]]; then
+  # For execution, convert backslash/pipe-continued commands back to combined format if needed
+  if [[ ($has_backslash_continuation -eq 1 || $has_pipe_continuation -eq 1) ]] && [[ -n "${display_command}" ]]; then
     # Convert edited multi-line back to executable format (replace \ followed by newline with space)
     # Process line by line: if line ends with \, combine with next line using space
     exec_command=""
@@ -978,6 +1219,37 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
           # Next line doesn't end with backslash - add it as-is
           exec_command="${exec_command}${next_line}"
         fi
+      elif [[ "${trimmed}" =~ \|$ ]] && [ $((i+1)) -lt ${#lines[@]} ]; then
+        # Line ends with pipe - combine with next non-comment line (keep the pipe)
+        exec_command="${exec_command}${line}"
+        exec_command="${exec_command%"${exec_command##*[![:space:]]}"}"  # Remove trailing whitespace
+        exec_command="${exec_command} "
+        ((i++))
+        # Skip comment lines and empty lines until we find the next command line
+        while [ $i -lt ${#lines[@]} ]; do
+          next_line="${lines[$i]}"
+          next_line_trimmed="${next_line#"${next_line%%[![:space:]]*}"}"  # Remove leading whitespace
+          next_trimmed="${next_line_trimmed%"${next_line_trimmed##*[![:space:]]}"}"  # Remove trailing whitespace
+          # Skip comment-only lines and empty lines
+          if [[ -z "$next_trimmed" ]] || [[ "$next_line" =~ ^[[:space:]]*# ]]; then
+            ((i++))
+            continue
+          fi
+          # Found a non-comment line - process it
+          next_line="${next_line#"${next_line%%[![:space:]]*}"}"  # Remove leading whitespace
+          # Check if next line also ends with pipe - if so, process it in next iteration
+          next_trimmed="${next_line%"${next_line##*[![:space:]]}"}"
+          if [[ "${next_trimmed}" =~ \|$ ]] && [ $((i+1)) -lt ${#lines[@]} ]; then
+            # Next line also ends with pipe - add it and continue
+            exec_command="${exec_command}${next_line}"
+            exec_command="${exec_command%"${exec_command##*[![:space:]]}"}"  # Remove trailing whitespace
+            exec_command="${exec_command} "
+          else
+            # Next line doesn't end with pipe - add it as-is
+            exec_command="${exec_command}${next_line}"
+          fi
+          break
+        done
       else
         exec_command="${exec_command}${line}"
         if [ $((i+1)) -lt ${#lines[@]} ]; then
@@ -986,11 +1258,15 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
       fi
       ((i++))
     done
-    eval "${exec_command}"
+    # Strip inline comments from exec_command before execution using helper function
+    exec_command_no_comments=$(_strip_comments_from_command "$exec_command")
+    eval "${exec_command_no_comments}"
     # Store original multi-line format in history
     CMD_HISTORY+=("${edited}")
   else
-    eval "${edited}"
+    # Strip inline comments from edited command before execution using helper function
+    edited_no_comments=$(_strip_comments_from_command "$edited")
+    eval "${edited_no_comments}"
     # Store in history as-is (preserves multiline format)
     CMD_HISTORY+=("${edited}")
   fi

@@ -30,6 +30,26 @@ command using unclosed quotes
 # THIS IS A COMMENT
 and a comment line"
 
+echo "pipe this text" |
+  grep text
+
+echo "pipe this text with empty line" | 
+
+  grep text
+
+echo "pipe this text" |
+  # With comment
+  grep text
+
+echo "pipe this text" | # With comment
+
+  grep text
+
+echo "pipe this text" | # With comments and empty line
+
+  # Comment two
+  grep text
+
 if [ 1 -lt 2 ]; then
   echo "multi-line if block: condition is true"
 else
