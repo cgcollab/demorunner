@@ -80,10 +80,9 @@ usage_instructions() {
   echo "                Set to 0 to disable rate-limiting; increase to make typing appear faster."
   echo
   echo "Known limitations:"
-  echo "  - For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are currently ignored (e.g., Tab, Ctrl+L)."
-  echo "  - Tab autocompletion is currently not supported."
-  echo "  - Ad-hoc multi-line commands are not supported (only scripted multi-line commands)."
-  echo "  - For scripted multi-line commands, editing is not supported (left arrow and Backspace are disabled)."
+  echo "  - For multi-line commands, editing is not supported (left arrow and Backspace are disabled)."
+  echo "  - For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are ignored (e.g., Tab, Ctrl+L)."
+  echo "  - Tab autocompletion is not supported."
   echo
 }
 
@@ -131,24 +130,74 @@ _redraw_multiline() {
   local prompt="$1"
   local buf="$2"
   local cursor="$3"
-  # Clear current line first
   printf "\r\033[K" >>/dev/tty
-  # Display the multiline command with prompt on first line only
   printf "%b" "$prompt" >>/dev/tty
-  # Split by newlines and display each line
-  IFS=$'\n' read -d '' -r -a lines <<< "$buf" || true
-  local i=0
-  for line in "${lines[@]}"; do
-    if [ $i -eq 0 ]; then
-      # First line: already have prompt, just print the line
+  local first_line=1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if (( first_line )); then
       printf "%s" "$line" >>/dev/tty
+      first_line=0
     else
-      # Subsequent lines: newline, then the line (no prompt)
       printf "\n%s" "$line" >>/dev/tty
     fi
+  done <<< "$buf"
+}
+
+# Helper to count how many terminal lines are needed to display the buffer
+_count_display_lines() {
+  local buf="$1"
+  local newline_count=$(echo -n "$buf" | tr -cd '\n' | wc -c | tr -d ' ')
+  echo $((newline_count + 1))
+}
+
+# Helper to clear the currently displayed command (single or multiline)
+_clear_displayed_lines() {
+  local lines="$1"
+  if (( lines <= 0 )); then
+    return
+  fi
+  # Move to the first line of the block (top)
+  local up=$((lines - 1))
+  while [ $up -gt 0 ]; do
+    printf "\033[1A" >>/dev/tty
+    ((up--))
+  done
+
+  # Clear from top to bottom, staying within the block
+  local i=1
+  printf "\r\033[K" >>/dev/tty
+  while [ $i -lt $lines ]; do
+    printf "\033[1B\r\033[K" >>/dev/tty
     ((i++))
   done
-  # Cursor is already at the end of the last line after printing
+
+  # Return cursor to the top of the cleared block so redraw starts in place
+  local back_up=$((lines - 1))
+  while [ $back_up -gt 0 ]; do
+    printf "\033[1A" >>/dev/tty
+    ((back_up--))
+  done
+}
+
+# Wrapper that chooses the correct redraw strategy based on the buffer content.
+# Returns the number of terminal lines used after redraw (1 for single-line).
+_render_input_state() {
+  local prompt="$1"
+  local buf="$2"
+  local cursor="$3"
+  local current_lines="${4:-1}"
+
+  if [[ "$buf" =~ $'\n' ]]; then
+    _clear_displayed_lines "$current_lines"
+    _redraw_multiline "$prompt" "$buf" "$cursor"
+    _count_display_lines "$buf"
+  else
+    if (( current_lines > 1 )); then
+      _clear_displayed_lines "$current_lines"
+    fi
+    _redraw_line "$prompt" "$buf" "$cursor"
+    echo 1
+  fi
 }
 
 # Function to process user input with arrow support + history
@@ -164,6 +213,11 @@ get_user_input() {
   local cursor=${#temp_command}
   local history_index=${#CMD_HISTORY[@]}
   local history_in_progress=""
+  local displayed_lines=1
+
+  if [[ "$temp_command" =~ $'\n' ]]; then
+    displayed_lines=$(_count_display_lines "$temp_command")
+  fi
 
   # If initial_text is provided, don't echo it here,
   # since it was already shown during the simulated typing animation.
@@ -173,9 +227,34 @@ get_user_input() {
   fi
 
   while IFS= read -srn1 next_char ; do
-    # Return (\n) ends the loop
+    # Handle newline (Enter) - either execute or keep building multiline command
     if [[ -z "$next_char" ]]; then
-      break
+      # Empty command (user pressed Enter twice) - exit
+      if [[ -z "${temp_command//[[:space:]]/}" ]]; then
+        break
+      fi
+
+      # If the command is complete, execute it
+      if is_command_complete "$temp_command"; then
+        break
+      fi
+
+      # Otherwise treat Enter as newline continuation (multiline ad-hoc command)
+      temp_command="${temp_command:0:cursor}"$'\n'"${temp_command:cursor}"
+      cursor=${#temp_command}
+      displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
+      continue
+    fi
+
+    # Handle Ctrl+C (ASCII 3) - abort current input and reset prompt
+    if [[ "$next_char" == $'\003' ]]; then
+      _clear_displayed_lines "$displayed_lines"
+      printf "^C\n" >>/dev/tty
+      temp_command=""
+      cursor=0
+      displayed_lines=1
+      printf "%b" "$prompt" >>/dev/tty
+      continue
     fi
 
     # Handle backspace
@@ -187,7 +266,7 @@ get_user_input() {
       if (( cursor > 0 )); then
         temp_command="${temp_command:0:cursor-1}${temp_command:cursor}"
         ((cursor--))
-        _redraw_line "$prompt" "$temp_command" "$cursor"
+        displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
       fi
       continue
     fi
@@ -205,60 +284,17 @@ get_user_input() {
                   history_in_progress="$temp_command"
                 fi
                 if (( history_index > 0 )); then
-                  # Clear current command display
-                  if [[ "$temp_command" =~ $'\n' ]]; then
-                    # Count newlines to determine how many display lines we have
-                    local newline_count=$(echo -n "$temp_command" | tr -cd '\n' | wc -c | tr -d ' ')
-                    local total_display_lines=$((newline_count + 1))  # +1 for prompt line
-                    # Clear all lines: start with current line, then move up and clear each line
-                    local i=0
-                    while [ $i -lt $total_display_lines ]; do
-                      if [ $i -eq 0 ]; then
-                        # Clear current line
-                        printf "\r\033[K" >>/dev/tty
-                      else
-                        # Move up and clear
-                        printf "\033[1A\033[K" >>/dev/tty
-                      fi
-                      ((i++))
-                    done
-                  else
-                    printf "\r\033[K" >>/dev/tty
-                  fi
+                  _clear_displayed_lines "$displayed_lines"
                   ((history_index--))
                   temp_command="${CMD_HISTORY[$history_index]}"
                   cursor=${#temp_command}
-                  # Display the new command
-                  if [[ "$temp_command" =~ $'\n' ]]; then
-                    _redraw_multiline "$prompt" "$temp_command" "$cursor"
-                  else
-                    _redraw_line "$prompt" "$temp_command" "$cursor"
-                  fi
+                  displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" 1)
                 fi
               fi ;;
           B)  # Down (move forward in history)
               if (( ${#CMD_HISTORY[@]} > 0 )); then
                 if (( history_index < ${#CMD_HISTORY[@]} )); then
-                  # Clear current command display
-                  if [[ "$temp_command" =~ $'\n' ]]; then
-                    # Count newlines to determine how many display lines we have
-                    local newline_count=$(echo -n "$temp_command" | tr -cd '\n' | wc -c | tr -d ' ')
-                    local total_display_lines=$((newline_count + 1))  # +1 for prompt line
-                    # Clear all lines: start with current line, then move up and clear each line
-                    local i=0
-                    while [ $i -lt $total_display_lines ]; do
-                      if [ $i -eq 0 ]; then
-                        # Clear current line
-                        printf "\r\033[K" >>/dev/tty
-                      else
-                        # Move up and clear
-                        printf "\033[1A\033[K" >>/dev/tty
-                      fi
-                      ((i++))
-                    done
-                  else
-                    printf "\r\033[K" >>/dev/tty
-                  fi
+                  _clear_displayed_lines "$displayed_lines"
                   ((history_index++))
                   if (( history_index == ${#CMD_HISTORY[@]} )); then
                     temp_command="$history_in_progress"
@@ -266,12 +302,7 @@ get_user_input() {
                     temp_command="${CMD_HISTORY[$history_index]}"
                   fi
                   cursor=${#temp_command}
-                  # Display the new command
-                  if [[ "$temp_command" =~ $'\n' ]]; then
-                    _redraw_multiline "$prompt" "$temp_command" "$cursor"
-                  else
-                    _redraw_line "$prompt" "$temp_command" "$cursor"
-                  fi
+                  displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" 1)
                 fi
               fi ;;
           C)  # Right (move cursor right)
@@ -298,7 +329,7 @@ get_user_input() {
     if [[ "$next_char" =~ [[:print:]] ]]; then
       temp_command="${temp_command:0:cursor}${next_char}${temp_command:cursor}"
       ((cursor++))
-      _redraw_line "$prompt" "$temp_command" "$cursor"
+      displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
       continue
     fi
   done

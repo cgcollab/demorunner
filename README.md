@@ -15,7 +15,7 @@ It allows the demo operator to step through commands one by one, type additional
 - Keeps **command history** and supports **in-line editing** using arrow keys
 - Respects `#_ECHO_ON` / `#_ECHO_OFF` flags for interactive or silent execution
 - Can start execution from any line number in the file
-- Supports scripted **multiline commands** (backslash continuation (\), unclosed quotes, heredocs (<< EOF), and block constructs (if/fi, for/while/done, case/esac, function/{}))
+- Supports **multiline commands** (both scripted and ad-hoc paste/typing) including backslash continuation (\), unclosed quotes, heredocs (<< EOF), and block constructs (if/fi, for/while/done, case/esac, function/{})
 
 ---
 
@@ -109,7 +109,7 @@ Environment variables:
 
   - For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are ignored (e.g., Tab, Ctrl+L).
   - Tab autocompletion is not supported.
-  - Ad-hoc multi-line commands are not supported (only scripted multi-line commands).
+  - In-line editing (Backspace/Left) of multi-line commands is not supported.
   - For scripted multi-line commands, editing is not supported (left arrow and Backspace are disabled).
 
 ---
