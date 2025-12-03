@@ -20,19 +20,6 @@ WHITE="\033[38;5;15m"
 BLACK="\033[0;30m"
 ECHO=on
 
-# Debug logging (optional). Set DEMO_DEBUG to any non-empty value to enable.
-DEMO_DEBUG="${DEMO_DEBUG:-}"
-DEMO_DEBUG_LOG="${DEMO_DEBUG_LOG:-/tmp/demorunner_debug.log}"
-if [[ -n "$DEMO_DEBUG" ]]; then
-  : > "$DEMO_DEBUG_LOG"
-fi
-
-_debug_log() {
-  if [[ -n "$DEMO_DEBUG" ]]; then
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$DEMO_DEBUG_LOG"
-  fi
-}
-
 # Set color
 if [[ $DEMO_COLOR == "blue" ]]; then
   SET_FONT="${BLUE}${BOLD}"
@@ -166,7 +153,6 @@ _count_display_lines() {
 # Helper to clear the currently displayed command (single or multiline)
 _clear_displayed_lines() {
   local lines="$1"
-  _debug_log "_clear_displayed_lines lines=$lines"
   if (( lines <= 0 )); then
     return
   fi
@@ -200,7 +186,6 @@ _render_input_state() {
   local buf="$2"
   local cursor="$3"
   local current_lines="${4:-1}"
-  _debug_log "_render_input_state lines=$current_lines cursor=$cursor buf=<${buf//$'\n'/\\n}>"
 
   if [[ "$buf" =~ $'\n' ]]; then
     _clear_displayed_lines "$current_lines"
@@ -247,14 +232,6 @@ get_user_input() {
     if [[ "$next_char" == $'\r' ]]; then
       continue
     fi
-    if [[ -n "$DEMO_DEBUG" ]]; then
-      if [[ -z "$next_char" ]]; then
-        _debug_log "keypress=<ENTER>"
-      else
-        printf -v _dbg_char '%q' "$next_char"
-        _debug_log "keypress=${_dbg_char}"
-      fi
-    fi
     # Handle newline (Enter) - either execute or keep building multiline command
     if [[ -z "$next_char" ]]; then
       local buffer_repr="${temp_command//$'\n'/\\n}"
@@ -263,7 +240,6 @@ get_user_input() {
       local lookahead=""
       if IFS= read -srn1 -t 0 lookahead ; then
         if [[ "$lookahead" != $'\r' ]]; then
-          _debug_log "enter: buffered newline during paste <$buffer_repr>"
           temp_command="${temp_command:0:cursor}"$'\n'"${temp_command:cursor}"
           cursor=${#temp_command}
           displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
@@ -275,20 +251,16 @@ get_user_input() {
 
       # No more input waiting — decide whether to execute or continue the multiline.
       if [[ -z "${temp_command//[[:space:]]/}" ]]; then
-        _debug_log "enter: empty buffer -> execute"
         break
       fi
       if is_command_complete "$temp_command"; then
-        _debug_log "enter: buffer complete -> execute <$buffer_repr>"
         break
       fi
 
       if (( newline_appended_since_input == 0 )); then
-        _debug_log "enter: forcing execute despite parser incomplete <$buffer_repr>"
         break
       fi
 
-      _debug_log "enter: buffer incomplete -> append newline <$buffer_repr>"
       temp_command="${temp_command:0:cursor}"$'\n'"${temp_command:cursor}"
       cursor=${#temp_command}
       displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
@@ -298,7 +270,6 @@ get_user_input() {
 
     # Handle Ctrl+C (ASCII 3) - abort current input and reset prompt
     if [[ "$next_char" == $'\003' ]]; then
-      _debug_log "Ctrl+C detected, clearing current input"
       _clear_displayed_lines "$displayed_lines"
       printf "^C\n" >>/dev/tty
       temp_command=""
@@ -319,7 +290,6 @@ get_user_input() {
         temp_command="${temp_command:0:cursor-1}${temp_command:cursor}"
         ((cursor--))
         displayed_lines=$(_render_input_state "$prompt" "$temp_command" "$cursor" "$displayed_lines")
-        _debug_log "backspace: new buffer=<${temp_command//$'\n'/\\n}> cursor=$cursor"
         newline_appended_since_input=0
       fi
       continue
@@ -1361,4 +1331,5 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
   ((LINE_NUMBER++))
   ((ARRAY_INDEX++))
 done
+
 
