@@ -20,6 +20,16 @@ fi
 echo "This is a multiline 
 command using unclosed quotes"
 
+echo "This is a multiline 
+command using unclosed quotes
+
+and an empty line"
+
+echo "This is a multiline 
+command using unclosed quotes
+# THIS IS A COMMENT
+and a comment line"
+
 if [ 1 -lt 2 ]; then
   echo "multi-line if block: condition is true"
 else
@@ -62,8 +72,8 @@ EOF
 
 cat multiline_doublequoted_heredoc.txt
 
-cat >> singleline_heredoc.txt <<< "This is a single line heredoc!"
-cat singleline_heredoc.txt
+cat > singleline_herestring.txt <<< "This is a single line here-string"
+cat singleline_herestring.txt
 
 pwd && \
  ls && \

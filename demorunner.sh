@@ -770,18 +770,51 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         inside_block=1
       fi
       
-      # If we hit an empty line, include it if inside a block or if command has backslash continuation
+      # Check if we're inside unclosed quotes - if so, always continue accumulating
+      # Use the same logic as is_command_complete for quote detection
+      masked_for_quote_check="$command"
+      masked_for_quote_check=$(echo "$masked_for_quote_check" | sed -E "s/<<-?[[:space:]]*['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]/<< \\1/g")
+      in_single_quote_check=0
+      in_double_quote_check=0
+      k=0
+      while [ $k -lt ${#masked_for_quote_check} ]; do
+        ch_quote="${masked_for_quote_check:$k:1}"
+        is_esc_quote=0
+        if [ $k -gt 0 ]; then
+          prev_ch_quote="${masked_for_quote_check:$((k-1)):1}"
+          if [[ "$prev_ch_quote" == "\\" ]]; then
+            is_esc_quote=1
+          fi
+        fi
+        if [[ $is_esc_quote -eq 0 ]]; then
+          if [[ "$ch_quote" == "'" ]] && [[ $in_double_quote_check -eq 0 ]]; then
+            in_single_quote_check=$((1 - in_single_quote_check))
+          elif [[ "$ch_quote" == "\"" ]] && [[ $in_single_quote_check -eq 0 ]]; then
+            in_double_quote_check=$((1 - in_double_quote_check))
+          fi
+        fi
+        ((k++))
+      done
+      inside_quotes=0
+      if [[ $in_single_quote_check -eq 1 ]] || [[ $in_double_quote_check -eq 1 ]]; then
+        inside_quotes=1
+      fi
+      
+      # If we hit an empty line, include it if inside quotes, inside a block, or if command has backslash continuation
       # Otherwise, empty lines separate commands, so break to let is_command_complete check handle it
       if [[ -z "${next_line//[[:space:]]/}" ]]; then
         trimmed="${command%"${command##*[![:space:]]}"}"
         if [[ "${trimmed}" =~ \\$ ]]; then
           # Backslash continuation - always include empty line
           :
+        elif [[ $inside_quotes -eq 1 ]]; then
+          # Inside unclosed quotes - include empty line as part of the quoted command
+          :
         elif [[ $inside_block -eq 1 ]]; then
           # Inside incomplete block - include empty line as part of the block
           :
         else
-          # Empty line and no backslash continuation and not in block - this separates commands
+          # Empty line and no backslash continuation and not in quotes and not in block - this separates commands
           # Test if command would be complete - if adding the empty line makes it complete, it's just a separator
           # Decrement indices since we already incremented them, and the main loop will skip the empty line
           ((ARRAY_INDEX--))
@@ -790,18 +823,21 @@ while [ $ARRAY_INDEX -lt ${#COMMAND_LINES[@]} ]; do
         fi
       fi
       
-      # If next line starts with # (and isn't a control flag), include it if inside a block or if command has backslash continuation
+      # If next line starts with # (and isn't a control flag), include it if inside quotes, inside a block, or if command has backslash continuation
       # Otherwise, comments separate commands, so break
       if [[ "${next_line}" =~ ^[[:space:]]*# ]] && ! [[ "${next_line}" =~ ^#_ECHO ]]; then
         prev_trimmed="${command%"${command##*[![:space:]]}"}"
         if [[ "${prev_trimmed}" =~ \\$ ]]; then
           # Backslash continuation - always include comment
           :
+        elif [[ $inside_quotes -eq 1 ]]; then
+          # Inside unclosed quotes - include comment as part of the quoted command
+          :
         elif [[ $inside_block -eq 1 ]]; then
           # Inside incomplete block - include comment as part of the block
           :
         else
-          # Comment and no backslash continuation and not in block - this separates commands
+          # Comment and no backslash continuation and not in quotes and not in block - this separates commands
           # Decrement indices since we already incremented them, and the main loop will skip the comment
           ((ARRAY_INDEX--))
           ((LINE_NUMBER--))
