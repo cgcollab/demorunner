@@ -107,10 +107,9 @@ Environment variables:
 
 ## ⚠️ Known Limitations
 
+  - For multi-line commands, editing is not supported (left arrow and Backspace are disabled).
   - For ad-hoc commands, escape sequences and control characters other than arrow keys, Backspace, and Return are ignored (e.g., Tab, Ctrl+L).
   - Tab autocompletion is not supported.
-  - In-line editing (Backspace/Left) of multi-line commands is not supported.
-  - For scripted multi-line commands, editing is not supported (left arrow and Backspace are disabled).
 
 ---
 
