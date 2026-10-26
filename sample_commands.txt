@@ -21,6 +21,8 @@ echo "              Use left/right arrows to edit a displayed command"
 
 #_ECHO_E_# Today is $(date +%A), amirite?
 
+#_ECHO_E_# Want to search the web? $(printf '\e]8;;https://www.google.com/\e\\(Click here!)\e]8;;\e\\\n')
+
 pwd
 ls
 ./hello.sh
