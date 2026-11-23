@@ -364,16 +364,11 @@ get_user_input() {
   echo "${temp_command}"
 }
 
-# Make sure file ends with newline so last
-# command is captured in array in next step
-c=`tail -c 1 $1`
-if [ "$c" != "" ]; then echo "" >> $1; fi
-
 # Read all the lines into an array (preserve empty lines so the array length
 # matches the number of lines in the commands file — important for accuracy of
 # the start-with-line-number argument)
 COMMAND_LINES=( )
-while IFS= read -r line; do
+while IFS= read -r line || [[ -n "$line" ]]; do
   # NOTE: We intentionally do NOT trim whitespace and we preserve empty lines
   # to keep line numbers aligned with the source file.
   COMMAND_LINES+=( "$line" )
